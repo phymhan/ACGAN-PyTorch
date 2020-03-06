@@ -19,7 +19,7 @@ from torch.autograd import Variable
 from utils import weights_init, compute_acc
 from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10
 from folder import ImageFolder
-
+import pdb
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='cifar10 | imagenet')
@@ -37,9 +37,11 @@ parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 parser.add_argument('--netD', default='', help="path to netD (to continue training)")
-parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
+parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
+parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac]')
+parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -70,6 +72,7 @@ if torch.cuda.is_available() and not opt.cuda:
 # datase t
 if opt.dataset == 'imagenet':
     # folder dataset
+    opt.imageSize = 128
     dataset = ImageFolder(
         root=opt.dataroot,
         transform=transforms.Compose([
@@ -81,6 +84,7 @@ if opt.dataset == 'imagenet':
         classes_idx=(10, 20)
     )
 elif opt.dataset == 'cifar10':
+    opt.imageSize = 32
     dataset = dset.CIFAR10(
         root=opt.dataroot, download=True,
         transform=transforms.Compose([
@@ -102,6 +106,7 @@ ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 num_classes = int(opt.num_classes)
 nc = 3
+tac = opt.loss_type == 'tac'
 
 # Define the generator and initialize the weights
 if opt.dataset == 'imagenet':
@@ -115,9 +120,9 @@ print(netG)
 
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
-    netD = _netD(ngpu, num_classes)
+    netD = _netD(ngpu, num_classes, tac=opt.loss_type=='tac')
 else:
-    netD = _netD_CIFAR10(ngpu, num_classes)
+    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
 netD.apply(weights_init)
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
@@ -159,6 +164,8 @@ eval_onehot[np.arange(opt.batchSize), eval_label] = 1
 eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
 eval_noise_ = (torch.from_numpy(eval_noise_))
 eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
+if opt.visualize_class_label > 0:
+    eval_label.fill_(opt.visualize_class_label)
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -178,10 +185,14 @@ for epoch in range(opt.niter):
         batch_size = real_cpu.size(0)
         if opt.cuda:
             real_cpu = real_cpu.cuda()
-        input.data.resize_as_(real_cpu).copy_(real_cpu)
-        dis_label.data.resize_(batch_size).fill_(real_label)
-        aux_label.data.resize_(batch_size).copy_(label)
-        dis_output, aux_output = netD(input)
+        with torch.no_grad():
+            input.resize_as_(real_cpu).copy_(real_cpu)
+            dis_label.resize_(batch_size).fill_(real_label)
+            aux_label.resize_(batch_size).copy_(label)
+        if tac:
+            dis_output, aux_output, _ = netD(input)
+        else:
+            dis_output, aux_output = netD(input)
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
         aux_errD_real = aux_criterion(aux_output, aux_label)
@@ -193,25 +204,31 @@ for epoch in range(opt.niter):
         accuracy = compute_acc(aux_output, aux_label)
 
         # train with fake
-        noise.data.resize_(batch_size, nz, 1, 1).normal_(0, 1)
+        noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
         label = np.random.randint(0, num_classes, batch_size)
         noise_ = np.random.normal(0, 1, (batch_size, nz))
         class_onehot = np.zeros((batch_size, num_classes))
         class_onehot[np.arange(batch_size), label] = 1
         noise_[np.arange(batch_size), :num_classes] = class_onehot[np.arange(batch_size)]
         noise_ = (torch.from_numpy(noise_))
-        noise.data.copy_(noise_.view(batch_size, nz, 1, 1))
-        aux_label.data.resize_(batch_size).copy_(torch.from_numpy(label))
+        noise.copy_(noise_.view(batch_size, nz, 1, 1))
+        aux_label.resize_(batch_size).copy_(torch.from_numpy(label))
 
         fake = netG(noise)
-        dis_label.data.fill_(fake_label)
-        dis_output, aux_output = netD(fake.detach())
+        dis_label.fill_(fake_label)
+        if tac:
+            dis_output, aux_output, tac_output = netD(fake.detach())
+            # tac on fake
+            tac_errD_fake = aux_criterion(tac_output, aux_label)
+        else:
+            dis_output, aux_output = netD(fake.detach())
+            tac_errD_fake = 0.
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         aux_errD_fake = aux_criterion(aux_output, aux_label)
         errD_fake = dis_errD_fake + aux_errD_fake
         errD_fake.backward()
         D_G_z1 = dis_output.data.mean()
-        errD = errD_real + errD_fake
+        errD = errD_real + errD_fake + tac_errD_fake
         optimizerD.step()
 
         ############################
@@ -219,10 +236,15 @@ for epoch in range(opt.niter):
         ###########################
         netG.zero_grad()
         dis_label.data.fill_(real_label)  # fake labels are real for generator cost
-        dis_output, aux_output = netD(fake)
+        if tac:
+            dis_output, aux_output, tac_output = netD(fake)
+            tac_errG = aux_criterion(tac_output, aux_label)
+        else:
+            dis_output, aux_output = netD(fake)
+            tac_errG = 0.
         dis_errG = dis_criterion(dis_output, dis_label)
         aux_errG = aux_criterion(aux_output, aux_label)
-        errG = dis_errG + aux_errG
+        errG = dis_errG + aux_errG - tac_errG
         errG.backward()
         D_G_z2 = dis_output.data.mean()
         optimizerG.step()
@@ -232,8 +254,8 @@ for epoch in range(opt.niter):
         all_loss_G = avg_loss_G * curr_iter
         all_loss_D = avg_loss_D * curr_iter
         all_loss_A = avg_loss_A * curr_iter
-        all_loss_G += errG.data[0]
-        all_loss_D += errD.data[0]
+        all_loss_G += errG.item()
+        all_loss_D += errD.item()
         all_loss_A += accuracy
         avg_loss_G = all_loss_G / (curr_iter + 1)
         avg_loss_D = all_loss_D / (curr_iter + 1)
@@ -241,7 +263,7 @@ for epoch in range(opt.niter):
 
         print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f Acc: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
-                 errD.data[0], avg_loss_D, errG.data[0], avg_loss_G, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A))
+                 errD.item(), avg_loss_D, errG.item(), avg_loss_G, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A))
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)

@@ -1,3 +1,6 @@
 outputs*
 *.pyc
 *.sw[po]
+datasets
+results
+

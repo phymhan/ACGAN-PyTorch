@@ -65,7 +65,7 @@ class _netG(nn.Module):
 
 
 class _netD(nn.Module):
-    def __init__(self, ngpu, num_classes=10):
+    def __init__(self, ngpu, num_classes=10, tac=False):
         super(_netD, self).__init__()
         self.ngpu = ngpu
 
@@ -199,9 +199,10 @@ class _netG_CIFAR10(nn.Module):
 
 
 class _netD_CIFAR10(nn.Module):
-    def __init__(self, ngpu, num_classes=10):
+    def __init__(self, ngpu, num_classes=10, tac=False):
         super(_netD_CIFAR10, self).__init__()
         self.ngpu = ngpu
+        self.tac = tac
 
         # Convolution 1
         self.conv1 = nn.Sequential(
@@ -248,6 +249,8 @@ class _netD_CIFAR10(nn.Module):
         self.fc_dis = nn.Linear(4*4*512, 1)
         # aux-classifier fc
         self.fc_aux = nn.Linear(4*4*512, num_classes)
+        # twin aux-classifier fc
+        self.fc_tac = nn.Linear(4*4*512, num_classes) if self.tac else None
         # softmax and sigmoid
         self.softmax = nn.Softmax()
         self.sigmoid = nn.Sigmoid()
@@ -263,6 +266,7 @@ class _netD_CIFAR10(nn.Module):
             flat6 = conv6.view(-1, 4*4*512)
             fc_dis = nn.parallel.data_parallel(self.fc_dis, flat6, range(self.ngpu))
             fc_aux = nn.parallel.data_parallel(self.fc_aux, flat6, range(self.ngpu))
+            fc_tac = nn.parallel.data_parallel(self.fc_tac, flat6, range(self.ngpu)) if self.tac else None
         else:
             conv1 = self.conv1(input)
             conv2 = self.conv2(conv1)
@@ -273,6 +277,11 @@ class _netD_CIFAR10(nn.Module):
             flat6 = conv6.view(-1, 4*4*512)
             fc_dis = self.fc_dis(flat6)
             fc_aux = self.fc_aux(flat6)
+            fc_tac = self.fc_tac(flat6) if self.tac else None
         classes = self.softmax(fc_aux)
         realfake = self.sigmoid(fc_dis).view(-1, 1).squeeze(1)
-        return realfake, classes
+        if self.tac:
+            mi = self.softmax(fc_tac)
+            return realfake, classes, mi
+        else:
+            return realfake, classes
