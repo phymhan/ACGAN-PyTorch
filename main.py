@@ -158,7 +158,10 @@ dis_label = Variable(dis_label)
 aux_label = Variable(aux_label)
 # noise for evaluation
 eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
-eval_label = np.random.randint(0, num_classes, opt.batchSize)
+if opt.visualize_class_label > 0:
+    eval_label = np.ones(opt.batchSize) * opt.visualize_class_label
+else:
+    eval_label = np.random.randint(0, num_classes, opt.batchSize)
 eval_onehot = np.zeros((opt.batchSize, num_classes))
 eval_onehot[np.arange(opt.batchSize), eval_label] = 1
 eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
