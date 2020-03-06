@@ -167,8 +167,6 @@ eval_onehot[np.arange(opt.batchSize), eval_label] = 1
 eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
 eval_noise_ = (torch.from_numpy(eval_noise_))
 eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
-if opt.visualize_class_label > 0:
-    eval_label.fill_(opt.visualize_class_label)
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
