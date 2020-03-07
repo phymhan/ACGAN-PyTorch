@@ -95,6 +95,17 @@ elif opt.dataset == 'cifar10':
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ]))
+elif opt.dataset == 'mnist':
+    opt.imageSize = 32
+    dataset = dset.MNIST(
+        root=opt.dataroot, download=True,
+        transform=transforms.Compose([
+            transforms.Scale(opt.imageSize),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: torch.cat([x, x, x], 0)),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    )
 else:
     raise NotImplementedError("No such dataset {}".format(opt.dataset))
 
@@ -114,8 +125,12 @@ tac = opt.loss_type == 'tac'
 # Define the generator and initialize the weights
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
-else:
+elif opt.dataset == 'cifar10':
     netG = _netG_CIFAR10(ngpu, nz)
+elif opt.dataset == 'mnist':
+    netG = _netG_CIFAR10(ngpu, nz)
+else:
+    raise NotImplementedError
 netG.apply(weights_init)
 if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG))
@@ -124,8 +139,12 @@ print(netG)
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes)
+elif opt.dataset == 'cifar10':
+    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
+elif opt.dataset == 'mnist':
+    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
 else:
-    netD = _netD_CIFAR10(ngpu, num_classes)
+    raise NotImplementedError
 netD.apply(weights_init)
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
