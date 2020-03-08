@@ -20,6 +20,7 @@ from utils import weights_init, compute_acc, AverageMeter
 from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
 from folder import ImageFolder
 from torch import autograd
+from torch.utils.tensorboard import SummaryWriter
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -48,6 +49,7 @@ parser.add_argument('--ma_rate', type=float, default=0.001)
 parser.add_argument('--lambda_mi', type=float, default=1.)
 parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
+parser.add_argument('--n_update_mine', type=int, default=1, help='how many updates on mine in each iteration')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -74,6 +76,8 @@ cudnn.benchmark = True
 
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+
+writer = SummaryWriter(log_dir=opt.outf)
 
 # datase t
 if opt.dataset == 'imagenet':
@@ -123,7 +127,6 @@ ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 num_classes = int(opt.num_classes)
 nc = 3
-tac = opt.loss_type == 'tac'
 
 # Define the generator and initialize the weights
 if opt.dataset == 'imagenet':
@@ -336,6 +339,12 @@ for epoch in range(opt.niter):
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
 
+    writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
+    writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
+    writer.add_scalar('Acc/Aux', avg_loss_A.avg, epoch)
+    writer.add_scalar('Acc/MI', avg_mi.avg, epoch)
+
     # do checkpointing
-    torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
-    torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+    if epoch % 10 == 0:
+        torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
+        torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
