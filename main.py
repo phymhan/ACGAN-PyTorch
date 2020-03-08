@@ -153,7 +153,7 @@ print(netD)
 
 # loss functions
 dis_criterion = nn.BCELoss()
-aux_criterion = nn.CrossEntropyLoss()  # nn.NLLLoss()
+aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -195,6 +195,7 @@ eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
+# loss_names = ['errD_real', 'errD_fake', '']
 losses_D = []
 losses_G = []
 losses_A = []

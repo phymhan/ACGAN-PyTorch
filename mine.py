@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter
-from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
+from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -168,7 +168,7 @@ print(netT)
 
 # loss functions
 dis_criterion = nn.BCELoss()
-aux_criterion = nn.CrossEntropyLoss()  # nn.NLLLoss()
+aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -278,7 +278,7 @@ for epoch in range(opt.niter):
         # aux_label_bar.resize_(batch_size).copy_(torch.from_numpy(label_bar))
         # y, y_bar = aux_label, aux_label_bar
         y = aux_label
-        for _ in range(1):
+        for _ in range(opt.n_update_mine):
             y_bar = y[torch.randperm(batch_size), ...]
             et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
             if netT.ma_et is None:
