@@ -297,13 +297,15 @@ for epoch in range(opt.niter):
         if opt.adaptive:
             grad_u = autograd.grad(dis_errG + aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_m = autograd.grad(opt.lambda_mi * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
             grad_m_flattened = torch.cat([g.view(-1) for g in grad_m])
             grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
             grad_m_norm = grad_m_flattened.pow(2).sum().sqrt()
             grad_a_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
-            for p, g_u, g_m in zip(netG.parameters(), grad_u, grad_m):
-                p.grad = g_u + g_m * grad_a_ratio
+            for p, g_d, g_c, g_m in zip(netG.parameters(), grad_d, grad_c, grad_m):
+                p.grad = g_d + g_c + g_m * grad_a_ratio
         else:
             errG.backward()
         optimizerG.step()
