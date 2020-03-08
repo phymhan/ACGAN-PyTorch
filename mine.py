@@ -19,6 +19,7 @@ from torch.autograd import Variable
 from utils import weights_init, compute_acc
 from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
 from folder import ImageFolder
+from torch import autograd
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -45,6 +46,7 @@ parser.add_argument('--loss_type', type=str, default='mine', help='[ac | tac | m
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
 parser.add_argument('--lambda_mi', type=float, default=1.)
+parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -290,9 +292,22 @@ for epoch in range(opt.niter):
         aux_errG = aux_criterion(aux_output, aux_label)
         mi = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar))))
         errG = dis_errG + aux_errG + opt.lambda_mi * mi
-        errG.backward()
-        D_G_z2 = dis_output.data.mean()
+
+        # adaptive
+        if opt.adaptive:
+            grad_u = autograd.grad(dis_errG + aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            grad_m = autograd.grad(opt.lambda_mi * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
+            grad_m_flattened = torch.cat([g.view(-1) for g in grad_m])
+            grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
+            grad_m_norm = grad_m_flattened.pow(2).sum().sqrt()
+            grad_a_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
+            for p, g_u, g_m in zip(netG.parameters(), grad_u, grad_m):
+                p.grad = g_u + g_m * grad_a_ratio
+        else:
+            errG.backward()
         optimizerG.step()
+        D_G_z2 = dis_output.data.mean()
 
         # compute the average loss
         curr_iter = epoch * len(dataloader) + i
