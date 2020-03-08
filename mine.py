@@ -50,6 +50,7 @@ parser.add_argument('--lambda_mi', type=float, default=1.)
 parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
 parser.add_argument('--n_update_mine', type=int, default=1, help='how many updates on mine in each iteration')
+parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -83,15 +84,24 @@ writer = SummaryWriter(log_dir=opt.outf)
 if opt.dataset == 'imagenet':
     # folder dataset
     opt.imageSize = 128
-    dataset = ImageFolder(
-        root=opt.dataroot,
+    # dataset = ImageFolder(
+    #     root=opt.dataroot,
+    #     transform=transforms.Compose([
+    #         transforms.Scale(opt.imageSize),
+    #         transforms.CenterCrop(opt.imageSize),
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    #     ]),
+    #     classes_idx=(10, 20)
+    # )
+    dataset = dset.ImageNet(
+        root=opt.dataroot, download=opt.download_dset,
         transform=transforms.Compose([
             transforms.Scale(opt.imageSize),
             transforms.CenterCrop(opt.imageSize),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ]),
-        classes_idx=(10, 20)
     )
 elif opt.dataset == 'cifar10':
     opt.imageSize = 32

@@ -44,6 +44,7 @@ parser.add_argument('--num_classes', type=int, default=10, help='Number of class
 parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
+parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -77,15 +78,24 @@ writer = SummaryWriter(log_dir=opt.outf)
 if opt.dataset == 'imagenet':
     # folder dataset
     opt.imageSize = 128
-    dataset = ImageFolder(
-        root=opt.dataroot,
+    # dataset = ImageFolder(
+    #     root=opt.dataroot,
+    #     transform=transforms.Compose([
+    #         transforms.Scale(opt.imageSize),
+    #         transforms.CenterCrop(opt.imageSize),
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    #     ]),
+    #     classes_idx=(10, 20)
+    # )
+    dataset = dset.ImageNet(
+        root=opt.dataroot, download=opt.download_dset,
         transform=transforms.Compose([
             transforms.Scale(opt.imageSize),
             transforms.CenterCrop(opt.imageSize),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ]),
-        classes_idx=(10, 20)
     )
 elif opt.dataset == 'cifar10':
     opt.imageSize = 32
