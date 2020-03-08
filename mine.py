@@ -47,6 +47,7 @@ parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 
 parser.add_argument('--ma_rate', type=float, default=0.001)
 parser.add_argument('--lambda_mi', type=float, default=1.)
 parser.add_argument('--adaptive', action='store_true')
+parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -295,7 +296,12 @@ for epoch in range(opt.niter):
 
         # adaptive
         if opt.adaptive:
-            grad_u = autograd.grad(dis_errG + aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            loss_G_u = 0.
+            if 'd' in opt.adaptive_grad:
+                loss_G_u += dis_errG
+            if 'c' in opt.adaptive_grad:
+                loss_G_u += aux_errG
+            grad_u = autograd.grad(loss_G_u, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_m = autograd.grad(opt.lambda_mi * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
