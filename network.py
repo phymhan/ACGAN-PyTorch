@@ -335,6 +335,7 @@ class _netT_CIFAR10(nn.Module):
         )
         # mine fc
         self.fc_mine = nn.Linear(4*4*512, 1)
+        self.lrelu = nn.LeakyReLU(negative_slope=2e-1)
         self.ma_et = None
 
     def forward(self, x, z):
@@ -359,4 +360,4 @@ class _netT_CIFAR10(nn.Module):
             conv6 = self.conv6(conv5)
             flat6 = conv6.view(-1, 4*4*512)
             fc_mine = self.fc_mine(flat6)
-        return fc_mine
+        return self.lrelu(fc_mine)
