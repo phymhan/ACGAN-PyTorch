@@ -195,6 +195,9 @@ eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
+losses_D = []
+losses_G = []
+losses_A = []
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
@@ -294,8 +297,14 @@ for epoch in range(opt.niter):
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
     writer.add_scalar('Acc/Aux', avg_loss_A.avg, epoch)
+    losses_G.append(avg_loss_G.avg)
+    losses_D.append(avg_loss_D.avg)
+    losses_A.append(avg_loss_A.avg)
 
     # do checkpointing
     if epoch % 10 == 0:
         torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf, epoch))
         torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
+    np.save(f'{opt.outf}/losses_G.npy', np.array(losses_G))
+    np.save(f'{opt.outf}/losses_D.npy', np.array(losses_D))
+    np.save(f'{opt.outf}/losses_A.npy', np.array(losses_A))
