@@ -43,6 +43,7 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
 parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
+parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -267,7 +268,7 @@ for epoch in range(opt.niter):
             tac_errG = 0.
         dis_errG = dis_criterion(dis_output, dis_label)
         aux_errG = aux_criterion(aux_output, aux_label)
-        errG = dis_errG + aux_errG - tac_errG
+        errG = dis_errG + aux_errG - opt.lambda_tac * tac_errG
         errG.backward()
         D_G_z2 = dis_output.data.mean()
         optimizerG.step()
