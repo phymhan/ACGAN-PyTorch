@@ -16,11 +16,12 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
-from utils import weights_init, compute_acc, AverageMeter
+from utils import weights_init, compute_acc, AverageMeter, ImageSampler
 from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
+from inception import prepare_inception_metrics, prepare_data_statistics
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -51,6 +52,7 @@ parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
 parser.add_argument('--n_update_mine', type=int, default=1, help='how many updates on mine in each iteration')
 parser.add_argument('--download_dset', action='store_true')
+parser.add_argument('--num_inception_images', type=int, default=5000)
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -224,10 +226,16 @@ optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerT = optim.Adam(netT.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
+dset_name = os.path.split(opt.dataroot)[-1]
+datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
+sampler = ImageSampler(netG, opt)
+get_metrics = prepare_inception_metrics(dataloader, datafile, False, opt.num_inception_images, no_is=True)
+
 losses_D = []
 losses_G = []
 losses_A = []
 losses_M = []
+losses_F = []
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
@@ -353,14 +361,18 @@ for epoch in range(opt.niter):
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
 
+    # compute metrics
+    _, _, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10, prints=True, use_torch=False)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
-    writer.add_scalar('Acc/Aux', avg_loss_A.avg, epoch)
-    writer.add_scalar('Acc/MI', avg_loss_M.avg, epoch)
+    writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
+    writer.add_scalar('Metric/MI', avg_loss_M.avg, epoch)
+    writer.add_scalar('Metric/FID', fid, epoch)
     losses_G.append(avg_loss_G.avg)
     losses_D.append(avg_loss_D.avg)
     losses_A.append(avg_loss_A.avg)
     losses_M.append(avg_loss_M.avg)
+    losses_F.append(fid)
 
     # do checkpointing
     if epoch % 10 == 0:

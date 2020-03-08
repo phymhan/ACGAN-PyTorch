@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+import pdb
 
 # custom weights initialization called on netG and netD
 def weights_init(m):
@@ -9,6 +11,7 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
+
 # compute the current classification accuracy
 def compute_acc(preds, labels):
     correct = 0
@@ -16,6 +19,7 @@ def compute_acc(preds, labels):
     correct = preds_.eq(labels.data).cpu().sum()
     acc = float(correct) / float(len(labels.data)) * 100.0
     return acc
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -39,3 +43,28 @@ class AverageMeter(object):
             self.avg[self.count == 0] = 0
             self.vec2sca_avg = self.avg.sum() / len(self.avg)
             self.vec2sca_val = self.val.sum() / len(self.val)
+
+
+class ImageSampler:
+    def __init__(self, G, opt):
+        self.G = G
+        self.noise = torch.FloatTensor(opt.batchSize, opt.nz, 1, 1)
+        self.label = torch.LongTensor(opt.batchSize)
+        self.batchSize = opt.batchSize
+        self.opt = opt
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self.noise.normal_(0, 1)
+        label = np.random.randint(0, self.opt.num_classes, self.batchSize)
+        noise_ = np.random.normal(0, 1, (self.batchSize, self.opt.nz))
+        class_onehot = np.zeros((self.batchSize, self.opt.num_classes))
+        class_onehot[np.arange(self.batchSize), label] = 1
+        noise_[np.arange(self.batchSize), :self.opt.num_classes] = class_onehot[np.arange(self.batchSize)]
+        noise_ = (torch.from_numpy(noise_))
+        self.noise.copy_(noise_.view(self.batchSize, self.opt.nz, 1, 1))
+        self.label.resize_(self.batchSize).copy_(torch.from_numpy(label))
+        fake = self.G(self.noise.cuda())
+        return fake, self.label
