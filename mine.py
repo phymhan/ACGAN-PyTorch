@@ -16,7 +16,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
-from utils import weights_init, compute_acc
+from utils import weights_init, compute_acc, AverageMeter
 from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
 from folder import ImageFolder
 from torch import autograd
@@ -211,11 +211,11 @@ optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerT = optim.Adam(netT.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
-avg_loss_D = 0.0
-avg_loss_G = 0.0
-avg_loss_A = 0.0
-avg_mi = 0.0
 for epoch in range(opt.niter):
+    avg_loss_D = AverageMeter()
+    avg_loss_G = AverageMeter()
+    avg_loss_A = AverageMeter()
+    avg_mi = AverageMeter()
     for i, data in enumerate(dataloader, 0):
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -318,23 +318,14 @@ for epoch in range(opt.niter):
         D_G_z2 = dis_output.data.mean()
 
         # compute the average loss
-        curr_iter = epoch * len(dataloader) + i
-        all_loss_G = avg_loss_G * curr_iter
-        all_loss_D = avg_loss_D * curr_iter
-        all_loss_A = avg_loss_A * curr_iter
-        all_mi = avg_mi * curr_iter
-        all_loss_G += errG.item()
-        all_loss_D += errD.item()
-        all_loss_A += accuracy
-        all_mi += mi.item()
-        avg_loss_G = all_loss_G / (curr_iter + 1)
-        avg_loss_D = all_loss_D / (curr_iter + 1)
-        avg_loss_A = all_loss_A / (curr_iter + 1)
-        avg_mi = all_mi / (curr_iter + 1)
+        avg_loss_G.update(errG.item(), batch_size)
+        avg_loss_D.update(errD.item(), batch_size)
+        avg_loss_A.update(accuracy, batch_size)
+        avg_mi.update(mi.item(), batch_size)
 
         print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f Acc: %.4f (%.4f) MI: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), avg_loss_D, errG.item(), avg_loss_G, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A, mi.item(), avg_mi))
+                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A.avg, mi.item(), avg_mi.avg))
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
