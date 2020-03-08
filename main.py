@@ -46,6 +46,7 @@ parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--download_dset', action='store_true')
+parser.add_argument('--num_inception_images', type=int, default=5000)
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
