@@ -168,7 +168,7 @@ print(netT)
 
 # loss functions
 dis_criterion = nn.BCELoss()
-aux_criterion = nn.NLLLoss()
+aux_criterion = nn.CrossEntropyLoss()  # nn.NLLLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -269,6 +269,7 @@ for epoch in range(opt.niter):
         errD_fake.backward()
         D_G_z1 = dis_output.data.mean()
         errD = errD_real + errD_fake
+        pdb.set_trace()
         optimizerD.step()
 
         ############################
@@ -300,6 +301,7 @@ for epoch in range(opt.niter):
         aux_errG = aux_criterion(aux_output, aux_label)
         mi = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar))))
         errG = dis_errG + aux_errG + opt.lambda_mi * mi
+        pdb.set_trace()
 
         # adaptive
         if opt.adaptive:

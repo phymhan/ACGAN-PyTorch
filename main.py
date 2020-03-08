@@ -153,7 +153,7 @@ print(netD)
 
 # loss functions
 dis_criterion = nn.BCELoss()
-aux_criterion = nn.NLLLoss()
+aux_criterion = nn.CrossEntropyLoss()  # nn.NLLLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
