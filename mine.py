@@ -54,8 +54,8 @@ opt = parser.parse_args()
 print(opt)
 
 # specify the gpu id if using only 1 gpu
-if opt.ngpu == 1:
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(opt.gpu_id)
+# if opt.ngpu == 1:
+#     os.environ['CUDA_VISIBLE_DEVICES'] = str(opt.gpu_id)
 
 try:
     os.makedirs(opt.outf)
