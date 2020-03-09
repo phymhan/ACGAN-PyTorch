@@ -212,7 +212,7 @@ aux_label = Variable(aux_label)
 aux_label_bar = Variable(aux_label_bar)
 # noise for evaluation
 eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
-if opt.visualize_class_label > 0:
+if opt.visualize_class_label >= 0:
     eval_label = np.ones(opt.batchSize, dtype=np.int) * opt.visualize_class_label
 else:
     eval_label = np.random.randint(0, num_classes, opt.batchSize)
