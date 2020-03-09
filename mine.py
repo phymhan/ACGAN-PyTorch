@@ -363,8 +363,6 @@ for epoch in range(opt.niter):
                 fake.data,
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
-        if i % 50 == 0:
-            break
 
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
