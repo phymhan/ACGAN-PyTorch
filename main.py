@@ -46,7 +46,7 @@ parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--download_dset', action='store_true')
-parser.add_argument('--num_inception_images', type=int, default=5000)
+parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -217,6 +217,8 @@ losses_D = []
 losses_G = []
 losses_A = []
 losses_F = []
+losses_I_mean = []
+losses_I_std = []
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
@@ -314,15 +316,19 @@ for epoch in range(opt.niter):
             )
 
     # compute metrics
-    _, _, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10, prints=True, use_torch=False)
+    is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
+                                       prints=True, use_torch=False)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
     writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
     writer.add_scalar('Metric/FID', fid, epoch)
+    writer.add_scalar('Metric/IS', is_mean)
     losses_G.append(avg_loss_G.avg)
     losses_D.append(avg_loss_D.avg)
     losses_A.append(avg_loss_A.avg)
     losses_F.append(fid)
+    losses_I_mean.append(is_mean)
+    losses_I_std.append(is_std)
 
     # do checkpointing
     if epoch % 10 == 0:
@@ -331,3 +337,5 @@ for epoch in range(opt.niter):
     np.save(f'{opt.outf}/losses_G.npy', np.array(losses_G))
     np.save(f'{opt.outf}/losses_D.npy', np.array(losses_D))
     np.save(f'{opt.outf}/losses_A.npy', np.array(losses_A))
+    np.save(f'{opt.outf}/losses_I_mean.npy', np.array(losses_I_mean))
+    np.save(f'{opt.outf}/losses_I_std.npy', np.array(losses_I_std))
