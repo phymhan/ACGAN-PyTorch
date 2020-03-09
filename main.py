@@ -322,7 +322,7 @@ for epoch in range(opt.niter):
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
     writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
     writer.add_scalar('Metric/FID', fid, epoch)
-    writer.add_scalar('Metric/IS', is_mean)
+    writer.add_scalar('Metric/IS', is_mean, epoch)
     losses_G.append(avg_loss_G.avg)
     losses_D.append(avg_loss_D.avg)
     losses_A.append(avg_loss_A.avg)
