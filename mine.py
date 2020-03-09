@@ -47,6 +47,7 @@ parser.add_argument('--num_classes', type=int, default=10, help='Number of class
 parser.add_argument('--loss_type', type=str, default='mine', help='[ac | tac | mine]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
+parser.add_argument('--lambda_mi_grad', type=float, default=1.)
 parser.add_argument('--lambda_mi', type=float, default=1.)
 parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
@@ -329,14 +330,14 @@ for epoch in range(opt.niter):
             if 'c' in opt.adaptive_grad:
                 loss_G_u += aux_errG
             grad_u = autograd.grad(loss_G_u, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_m = autograd.grad(opt.lambda_mi * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            grad_m = autograd.grad(opt.lambda_mi_grad * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
             grad_m_flattened = torch.cat([g.view(-1) for g in grad_m])
             grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
             grad_m_norm = grad_m_flattened.pow(2).sum().sqrt()
-            grad_a_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
+            grad_a_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm * opt.lambda_mi
             for p, g_d, g_c, g_m in zip(netG.parameters(), grad_d, grad_c, grad_m):
                 p.grad = g_d + g_c + g_m * grad_a_ratio
         else:
