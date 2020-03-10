@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from torch.nn import init
 import pdb
 
 # custom weights initialization called on netG and netD
@@ -10,6 +11,9 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
+    elif classname.find('Embedding') != -1:
+        # m.weight.data.normal_(1.0, 0.02)
+        init.xavier_uniform_(m.weight.data)
 
 
 # compute the current classification accuracy

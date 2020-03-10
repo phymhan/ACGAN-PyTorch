@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler
-from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10
+from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10, _netDT_CIFAR10
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -54,6 +54,7 @@ parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc
 parser.add_argument('--n_update_mine', type=int, default=1, help='how many updates on mine in each iteration')
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
+parser.add_argument('--use_shared_T', action='store_true')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -159,9 +160,15 @@ print(netG)
 if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes)
 elif opt.dataset == 'cifar10':
-    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
+    if opt.use_shared_T:
+        netD = _netDT_CIFAR10(ngpu, num_classes)
+    else:
+        netD = _netD_CIFAR10(ngpu, num_classes, tac=False)
 elif opt.dataset == 'mnist':
-    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
+    if opt.use_shared_T:
+        netD = _netDT_CIFAR10(ngpu, num_classes)
+    else:
+        netD = _netD_CIFAR10(ngpu, num_classes, tac=False)
 else:
     raise NotImplementedError
 netD.apply(weights_init)
@@ -173,8 +180,11 @@ print(netD)
 if opt.dataset == 'imagenet':
     netT = _netT(ngpu)
 else:
-    netT = _netT_CIFAR10(ngpu)
-netT.apply(weights_init)
+    if opt.use_shared_T:
+        netT = netD
+    else:
+        netT = _netT_CIFAR10(ngpu)
+        netT.apply(weights_init)
 if opt.netT != '':
     netT.load_state_dict(torch.load(opt.netT))
 print(netT)
