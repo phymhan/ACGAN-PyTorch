@@ -18,7 +18,7 @@ import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler
 from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
-from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32
+from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32, _netDT_SNResProj32
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -57,7 +57,8 @@ parser.add_argument('--n_update_mine', type=int, default=1, help='how many updat
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--use_shared_T', action='store_true')
-parser.add_argument('--netT_model', type=str, default='concat')
+parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
+parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -162,19 +163,21 @@ print(netG)
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes)
-elif opt.dataset == 'cifar10':
+elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
     if opt.use_shared_T:
-        netD = _netDT_CIFAR10(ngpu, num_classes)
+        if opt.netD_model == 'proj32':
+            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes)
+        elif opt.netD_model == 'basic':
+            netD = _netDT_CIFAR10(ngpu, num_classes)
+            netD.apply(weights_init)
+        else:
+            raise NotImplementedError
     else:
         netD = _netD_CIFAR10(ngpu, num_classes, tac=False)
-elif opt.dataset == 'mnist':
-    if opt.use_shared_T:
-        netD = _netDT_CIFAR10(ngpu, num_classes)
-    else:
-        netD = _netD_CIFAR10(ngpu, num_classes, tac=False)
+        netD.apply(weights_init)
 else:
     raise NotImplementedError
-netD.apply(weights_init)
+
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
 print(netD)
@@ -195,6 +198,8 @@ else:
         elif opt.netT_model == 'proj32':
             netT = SNResNetProjectionDiscriminator32(opt.ntf, opt.num_classes)
             # netT._initialize()
+        else:
+            raise NotImplementedError
 if opt.netT != '':
     netT.load_state_dict(torch.load(opt.netT))
 print(netT)

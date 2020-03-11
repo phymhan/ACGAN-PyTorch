@@ -537,6 +537,59 @@ class _netDT_CIFAR10(nn.Module):
             return realfake, classes
 
 
+class _netDT_SNResProj32(nn.Module):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+        super(_netDT_SNResProj32, self).__init__()
+        self.num_features = num_features
+        self.num_classes = num_classes
+        self.activation = activation
+
+        self.block1 = OptimizedBlock(3, num_features)
+        self.block2 = Block(num_features, num_features * 2,
+                            activation=activation, downsample=True)
+        self.block3 = Block(num_features * 2, num_features * 4,
+                            activation=activation, downsample=True)
+        self.block4 = Block(num_features * 4, num_features * 8,
+                            activation=activation, downsample=True)
+        self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        if num_classes > 0:
+            self.l_y = utils.spectral_norm(
+                nn.Embedding(num_classes, num_features * 8))
+        self.ma_et = None
+
+        # discriminator fc
+        self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+        # aux-classifier fc
+        self.fc_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+
+        self._initialize()
+
+    def _initialize(self):
+        init.xavier_uniform_(self.l5.weight.data)
+        optional_l_y = getattr(self, 'l_y', None)
+        if optional_l_y is not None:
+            init.xavier_uniform_(optional_l_y.weight.data)
+
+    def forward(self, x, y=None):
+        h = x
+        h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        if y is not None:
+            output = self.l5(h)
+            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
+            return output
+        else:
+            realfake = F.sigmoid(self.fc_dis(h))
+            classes = self.fc_aux(h)
+            return realfake, classes
+
+
 # borrowed from https://github.com/crcrpar/pytorch.sngan_projection/blob/master/models/discriminators/snresnet.py
 class SNResNetProjectionDiscriminator64(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu):
