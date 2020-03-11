@@ -17,7 +17,8 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler
-from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_CIFAR10, _netDT_CIFAR10
+from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
+from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -33,6 +34,7 @@ parser.add_argument('--imageSize', type=int, default=128, help='the height / wid
 parser.add_argument('--nz', type=int, default=110, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
+parser.add_argument('--ntf', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -55,6 +57,7 @@ parser.add_argument('--n_update_mine', type=int, default=1, help='how many updat
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--use_shared_T', action='store_true')
+parser.add_argument('--netT_model', type=str, default='concat')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -183,8 +186,15 @@ else:
     if opt.use_shared_T:
         netT = netD
     else:
-        netT = _netT_CIFAR10(ngpu)
-        netT.apply(weights_init)
+        if opt.netT_model == 'concat':
+            netT = _netT_concat_CIFAR10(ngpu)
+            netT.apply(weights_init)
+        elif opt.netT_model == 'proj64':
+            netT = SNResNetProjectionDiscriminator64(opt.ntf, opt.num_classes)
+            # netT._initialize()
+        elif opt.netT_model == 'proj32':
+            netT = SNResNetProjectionDiscriminator32(opt.ntf, opt.num_classes)
+            # netT._initialize()
 if opt.netT != '':
     netT.load_state_dict(torch.load(opt.netT))
 print(netT)
