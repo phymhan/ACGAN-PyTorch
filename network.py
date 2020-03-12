@@ -590,6 +590,48 @@ class _netDT_SNResProj32(nn.Module):
             return realfake, classes
 
 
+class _netD_SNRes32(nn.Module):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False):
+        super(_netD_SNRes32, self).__init__()
+        self.num_features = num_features
+        self.num_classes = num_classes
+        self.activation = activation
+        self.tac = tac
+
+        self.block1 = OptimizedBlock(3, num_features)
+        self.block2 = Block(num_features, num_features * 2,
+                            activation=activation, downsample=True)
+        self.block3 = Block(num_features * 2, num_features * 4,
+                            activation=activation, downsample=True)
+        self.block4 = Block(num_features * 4, num_features * 8,
+                            activation=activation, downsample=True)
+
+        # discriminator fc
+        self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+        # aux-classifier fc
+        self.fc_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+        # twin aux-classifier fc
+        self.tac_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+
+    def forward(self, x):
+        h = x
+        h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        realfake = F.sigmoid(self.fc_dis(h))
+        classes = self.fc_aux(h)
+        if self.tac:
+            classes_twin = self.tac_aux(h)
+            return realfake, classes, classes_twin
+        else:
+            return realfake, classes
+
+
 # borrowed from https://github.com/crcrpar/pytorch.sngan_projection/blob/master/models/discriminators/snresnet.py
 class SNResNetProjectionDiscriminator64(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu):

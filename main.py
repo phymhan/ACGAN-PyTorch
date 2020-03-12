@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler
-from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10
+from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netD_SNRes32
 from folder import ImageFolder
 from torch.utils.tensorboard import SummaryWriter
 from inception import prepare_inception_metrics
@@ -47,6 +47,7 @@ parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
+parser.add_argument('--netD_model', type=str, default='basic', help='[basic | snres32]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
@@ -152,13 +153,16 @@ print(netG)
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes, tac=opt.loss_type=='tac')
-elif opt.dataset == 'cifar10':
-    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
-elif opt.dataset == 'mnist':
-    netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
+elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
+    if opt.netD_model == 'snres32':
+        netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type=='tac')
+    elif opt.netD_model == 'basic':
+        netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
+        netD.apply(weights_init)
+    else:
+        raise NotImplementedError
 else:
     raise NotImplementedError
-netD.apply(weights_init)
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
 print(netD)
