@@ -538,11 +538,12 @@ class _netDT_CIFAR10(nn.Module):
 
 
 class _netDT_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False):
         super(_netDT_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
+        self.use_cy = use_cy
 
         self.block1 = OptimizedBlock(3, num_features)
         self.block2 = Block(num_features, num_features * 2,
@@ -555,6 +556,9 @@ class _netDT_SNResProj32(nn.Module):
         if num_classes > 0:
             self.l_y = utils.spectral_norm(
                 nn.Embedding(num_classes, num_features * 8))
+            # self.c_y = nn.Embedding(num_classes, 1)
+            self.c_y = utils.spectral_norm(
+                nn.Embedding(num_classes, 1))
         self.ma_et = None
 
         # discriminator fc
@@ -582,7 +586,9 @@ class _netDT_SNResProj32(nn.Module):
 
         if y is not None:
             output = self.l5(h)
-            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
+            cy = self.c_y(y) if self.use_cy else 0.0
+            print(cy)
+            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
             return output
         else:
             realfake = F.sigmoid(self.fc_dis(h))

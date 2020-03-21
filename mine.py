@@ -57,6 +57,7 @@ parser.add_argument('--n_update_mine', type=int, default=1, help='how many updat
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--use_shared_T', action='store_true')
+parser.add_argument('--use_cy', action='store_true')
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
@@ -166,7 +167,7 @@ if opt.dataset == 'imagenet':
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
     if opt.use_shared_T:
         if opt.netD_model == 'proj32':
-            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes)
+            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy)
         elif opt.netD_model == 'basic':
             netD = _netDT_CIFAR10(ngpu, num_classes)
             netD.apply(weights_init)
