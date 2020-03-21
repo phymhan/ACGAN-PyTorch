@@ -587,7 +587,6 @@ class _netDT_SNResProj32(nn.Module):
         if y is not None:
             output = self.l5(h)
             cy = self.c_y(y) if self.use_cy else 0.0
-            print(cy)
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
             return output
         else:
