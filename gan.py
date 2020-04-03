@@ -17,12 +17,10 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler
-from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
-from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32, _netDT_SNResProj32
+from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netD_SNRes32
 from folder import ImageFolder
-from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
-from inception import prepare_inception_metrics, prepare_data_statistics
+from inception import prepare_inception_metrics
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -31,10 +29,9 @@ parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
 parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=128, help='the height / width of the input image to network')
-parser.add_argument('--nz', type=int, default=110, help='size of the latent z vector')
+parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
-parser.add_argument('--ntf', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -42,27 +39,18 @@ parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 parser.add_argument('--netD', default='', help="path to netD (to continue training)")
-parser.add_argument('--netT', default='', help="path to netD (to continue training)")
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
-parser.add_argument('--loss_type', type=str, default='mine', help='[ac | tac | mine]')
-parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
-parser.add_argument('--ma_rate', type=float, default=0.001)
-parser.add_argument('--lambda_mi_grad', type=float, default=1.)
-parser.add_argument('--lambda_mi', type=float, default=1.)
-parser.add_argument('--adaptive', action='store_true')
-parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
-parser.add_argument('--n_update_mine', type=int, default=1, help='how many updates on mine in each iteration')
+parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac | gan]')
+parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
-parser.add_argument('--use_shared_T', action='store_true')
-parser.add_argument('--use_cy', action='store_true')
-parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
-parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
+parser.add_argument('--netD_model', type=str, default='basic', help='[basic | snres32]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 
 opt = parser.parse_args()
+tac = False
 print(opt)
 
 # specify the gpu id if using only 1 gpu
@@ -163,47 +151,20 @@ print(netG)
 
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
-    netD = _netD(ngpu, num_classes)
+    netD = _netD(ngpu, num_classes, tac=opt.loss_type=='tac')
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
-    if opt.use_shared_T:
-        if opt.netD_model == 'proj32':
-            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy)
-        elif opt.netD_model == 'basic':
-            netD = _netDT_CIFAR10(ngpu, num_classes)
-            netD.apply(weights_init)
-        else:
-            raise NotImplementedError
-    else:
-        netD = _netD_CIFAR10(ngpu, num_classes, tac=False)
+    if opt.netD_model == 'snres32':
+        netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type=='tac')
+    elif opt.netD_model == 'basic':
+        netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
         netD.apply(weights_init)
+    else:
+        raise NotImplementedError
 else:
     raise NotImplementedError
-
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
 print(netD)
-
-# Define the statistics network and initialize the weights
-if opt.dataset == 'imagenet':
-    netT = _netT(ngpu)
-else:
-    if opt.use_shared_T:
-        netT = netD
-    else:
-        if opt.netT_model == 'concat':
-            netT = _netT_concat_CIFAR10(ngpu)
-            netT.apply(weights_init)
-        elif opt.netT_model == 'proj64':
-            netT = SNResNetProjectionDiscriminator64(opt.ntf, opt.num_classes)
-            # netT._initialize()
-        elif opt.netT_model == 'proj32':
-            netT = SNResNetProjectionDiscriminator32(opt.ntf, opt.num_classes)
-            # netT._initialize()
-        else:
-            raise NotImplementedError
-if opt.netT != '':
-    netT.load_state_dict(torch.load(opt.netT))
-print(netT)
 
 # loss functions
 dis_criterion = nn.BCELoss()
@@ -215,7 +176,6 @@ noise = torch.FloatTensor(opt.batchSize, nz, 1, 1)
 eval_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
 dis_label = torch.FloatTensor(opt.batchSize)
 aux_label = torch.LongTensor(opt.batchSize)
-aux_label_bar = torch.LongTensor(opt.batchSize)
 real_label = 1
 fake_label = 0
 
@@ -223,53 +183,37 @@ fake_label = 0
 if opt.cuda:
     netD.cuda()
     netG.cuda()
-    netT.cuda()
     dis_criterion.cuda()
     aux_criterion.cuda()
-    input, dis_label, aux_label, aux_label_bar = input.cuda(), dis_label.cuda(), aux_label.cuda(), aux_label_bar.cuda()
+    input, dis_label, aux_label = input.cuda(), dis_label.cuda(), aux_label.cuda()
     noise, eval_noise = noise.cuda(), eval_noise.cuda()
 
 # define variables
 input = Variable(input)
 noise = Variable(noise)
-eval_noise = Variable(eval_noise)
-dis_label = Variable(dis_label)
-aux_label = Variable(aux_label)
-aux_label_bar = Variable(aux_label_bar)
 # noise for evaluation
 eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
-if opt.visualize_class_label >= 0:
-    eval_label = np.ones(opt.batchSize, dtype=np.int) * opt.visualize_class_label
-else:
-    eval_label = np.random.randint(0, num_classes, opt.batchSize)
-eval_onehot = np.zeros((opt.batchSize, num_classes))
-eval_onehot[np.arange(opt.batchSize), eval_label] = 1
-eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
 eval_noise_ = (torch.from_numpy(eval_noise_))
 eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizerT = optim.Adam(netT.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
 dset_name = os.path.split(opt.dataroot)[-1]
 datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
 sampler = ImageSampler(netG, opt)
 get_metrics = prepare_inception_metrics(dataloader, datafile, False, opt.num_inception_images, no_is=False)
 
+# loss_names = ['errD_real', 'errD_fake', '']
 losses_D = []
 losses_G = []
-losses_A = []
-losses_M = []
 losses_F = []
 losses_I_mean = []
 losses_I_std = []
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
-    avg_loss_A = AverageMeter()
-    avg_loss_M = AverageMeter()
     for i, data in enumerate(dataloader, 0):
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -283,107 +227,52 @@ for epoch in range(opt.niter):
         with torch.no_grad():
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label)
-            aux_label.resize_(batch_size).copy_(label)
-        dis_output, aux_output = netD(input)
+        dis_output, _ = netD(input)
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
-        aux_errD_real = aux_criterion(aux_output, aux_label)
-        errD_real = dis_errD_real + aux_errD_real
+        errD_real = dis_errD_real
         errD_real.backward()
         D_x = dis_output.data.mean()
 
-        # compute the current classification accuracy
-        accuracy = compute_acc(aux_output, aux_label)
-
         # train with fake
         noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-        label = np.random.randint(0, num_classes, batch_size)
         noise_ = np.random.normal(0, 1, (batch_size, nz))
-        class_onehot = np.zeros((batch_size, num_classes))
-        class_onehot[np.arange(batch_size), label] = 1
-        noise_[np.arange(batch_size), :num_classes] = class_onehot[np.arange(batch_size)]
         noise_ = (torch.from_numpy(noise_))
         noise.copy_(noise_.view(batch_size, nz, 1, 1))
-        aux_label.resize_(batch_size).copy_(torch.from_numpy(label))
-        fake = netG(noise)
 
-        # train with fake
+        fake = netG(noise)
         dis_label.fill_(fake_label)
-        dis_output, aux_output = netD(fake.detach())
+        dis_output, _ = netD(fake.detach())
+
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        aux_errD_fake = aux_criterion(aux_output, aux_label)
-        errD_fake = dis_errD_fake + aux_errD_fake
+        errD_fake = dis_errD_fake
         errD_fake.backward()
         D_G_z1 = dis_output.data.mean()
         errD = errD_real + errD_fake
         optimizerD.step()
 
         ############################
-        # (2) Update T network
-        ###########################
-        # label_bar = np.random.randint(0, num_classes, batch_size)
-        # aux_label_bar.resize_(batch_size).copy_(torch.from_numpy(label_bar))
-        # y, y_bar = aux_label, aux_label_bar
-        y = aux_label
-        for _ in range(opt.n_update_mine):
-            y_bar = y[torch.randperm(batch_size), ...]
-            et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
-            if netT.ma_et is None:
-                netT.ma_et = et.detach().item()
-            netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
-            mi = torch.mean(netT(fake.detach(), y)) - torch.log(et) * et.detach() / netT.ma_et
-            loss_mine = -mi
-            optimizerT.zero_grad()
-            loss_mine.backward()
-            optimizerT.step()
-
-        ############################
-        # (3) Update G network: maximize log(D(G(z)))
+        # (2) Update G network: maximize log(D(G(z)))
         ###########################
         netG.zero_grad()
         dis_label.data.fill_(real_label)  # fake labels are real for generator cost
-        dis_output, aux_output = netD(fake)
+        dis_output, _ = netD(fake)
         dis_errG = dis_criterion(dis_output, dis_label)
-        aux_errG = aux_criterion(aux_output, aux_label)
-        mi = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar))))
-        errG = dis_errG + aux_errG + opt.lambda_mi * mi
-
-        # adaptive
-        if opt.adaptive:
-            loss_G_u = 0.
-            if 'd' in opt.adaptive_grad:
-                loss_G_u += dis_errG
-            if 'c' in opt.adaptive_grad:
-                loss_G_u += aux_errG
-            grad_u = autograd.grad(loss_G_u, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_m = autograd.grad(opt.lambda_mi_grad * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
-            grad_m_flattened = torch.cat([g.view(-1) for g in grad_m])
-            grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
-            grad_m_norm = grad_m_flattened.pow(2).sum().sqrt()
-            grad_a_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm * opt.lambda_mi
-            for p, g_d, g_c, g_m in zip(netG.parameters(), grad_d, grad_c, grad_m):
-                p.grad = g_d + g_c + g_m * grad_a_ratio
-        else:
-            errG.backward()
-        optimizerG.step()
+        errG = dis_errG
+        errG.backward()
         D_G_z2 = dis_output.data.mean()
+        optimizerG.step()
 
         # compute the average loss
         avg_loss_G.update(errG.item(), batch_size)
         avg_loss_D.update(errD.item(), batch_size)
-        avg_loss_A.update(accuracy, batch_size)
-        avg_loss_M.update(mi.item(), batch_size)
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f Acc: %.4f (%.4f) MI: %.4f (%.4f)'
+        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f'
               % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A.avg, mi.item(), avg_loss_M.avg))
+                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2))
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
-            print('Label for eval = {}'.format(eval_label))
             fake = netG(eval_noise)
             vutils.save_image(
                 fake.data,
@@ -395,14 +284,10 @@ for epoch in range(opt.niter):
                                        prints=True, use_torch=False)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
-    writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
-    writer.add_scalar('Metric/MI', avg_loss_M.avg, epoch)
     writer.add_scalar('Metric/FID', fid, epoch)
     writer.add_scalar('Metric/IS', is_mean, epoch)
     losses_G.append(avg_loss_G.avg)
     losses_D.append(avg_loss_D.avg)
-    losses_A.append(avg_loss_A.avg)
-    losses_M.append(avg_loss_M.avg)
     losses_F.append(fid)
     losses_I_mean.append(is_mean)
     losses_I_std.append(is_std)
@@ -413,8 +298,5 @@ for epoch in range(opt.niter):
         torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
     np.save(f'{opt.outf}/losses_G.npy', np.array(losses_G))
     np.save(f'{opt.outf}/losses_D.npy', np.array(losses_D))
-    np.save(f'{opt.outf}/losses_A.npy', np.array(losses_A))
-    np.save(f'{opt.outf}/losses_M.npy', np.array(losses_M))
-    np.save(f'{opt.outf}/losses_F.npy', np.array(losses_F))
     np.save(f'{opt.outf}/losses_I_mean.npy', np.array(losses_I_mean))
     np.save(f'{opt.outf}/losses_I_std.npy', np.array(losses_I_std))

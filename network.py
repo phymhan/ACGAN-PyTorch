@@ -13,7 +13,7 @@ class _netG(nn.Module):
         self.nz = nz
 
         # first linear layer
-        self.fc1 = nn.Linear(110, 768)
+        self.fc1 = nn.Linear(nz, 768)
         # Transposed Convolution 2
         self.tconv2 = nn.Sequential(
             nn.ConvTranspose2d(768, 384, 5, 2, 0, bias=False),
@@ -237,7 +237,7 @@ class _netG_CIFAR10(nn.Module):
         self.nz = nz
 
         # first linear layer
-        self.fc1 = nn.Linear(110, 384)
+        self.fc1 = nn.Linear(nz, 384)
         # Transposed Convolution 2
         self.tconv2 = nn.Sequential(
             nn.ConvTranspose2d(384, 192, 4, 1, 0, bias=False),
