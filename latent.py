@@ -182,10 +182,10 @@ datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
 
 losses_class = []
 losses_shift = []
-batch_size = opt.batchSize
 avg_loss_class = AverageMeter()
 avg_loss_shift = AverageMeter()
 avg_loss_acc = AverageMeter()
+batch_size = opt.batchSize
 for i in range(opt.niter):
     # sample z, k, eps
     noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
@@ -211,6 +211,11 @@ for i in range(opt.niter):
     optimizerR.step()
 
     accuracy = compute_acc(pred_class, label)
+
+    if i % 1000 == 0:
+        avg_loss_class.reset()
+        avg_loss_shift.reset()
+        avg_loss_acc.reset()
 
     avg_loss_class.update(loss_class.item(), batch_size)
     avg_loss_shift.update(loss_shift.item(), batch_size)
