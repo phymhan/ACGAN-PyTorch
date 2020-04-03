@@ -723,3 +723,94 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if y is not None:
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
         return output
+
+
+## Latent
+class EmbeddingNet(nn.Module):
+    def __init__(self, nz=64, K=0):
+        super(EmbeddingNet, self).__init__()
+        self.nz = nz
+        self.K = K
+        self.A = utils.spectral_norm(nn.Embedding(K, nz))
+        self._initialize()
+
+    def _initialize(self):
+        init.xavier_uniform_(self.A.weight.data)
+
+    def forward(self, k):
+        return self.A(k)
+
+
+class ReconstructorConcat(nn.Module):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+        super(ReconstructorConcat, self).__init__()
+        self.num_features = num_features
+        self.num_classes = num_classes
+        self.activation = activation
+
+        self.block1 = OptimizedBlock(3 + 3, num_features)
+        self.block2 = Block(num_features, num_features * 2,
+                            activation=activation, downsample=True)
+        self.block3 = Block(num_features * 2, num_features * 4,
+                            activation=activation, downsample=True)
+        self.block4 = Block(num_features * 4, num_features * 8,
+                            activation=activation, downsample=True)
+
+        # discriminator fc
+        self.fc_class = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+        # aux-classifier fc
+        self.fc_shift = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+
+    def forward(self, x1, x2):
+        h = torch.cat((x1, x2), dim=1)
+        h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        classes = self.fc_class(h)
+        shifted = self.fc_shift(h)
+        return classes, shifted
+
+
+class ReconstructorSiamese(nn.Module):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+        super(ReconstructorSiamese, self).__init__()
+        self.num_features = num_features
+        self.num_classes = num_classes
+        self.activation = activation
+
+        self.block1 = OptimizedBlock(3, num_features)
+        self.block2 = Block(num_features, num_features * 2,
+                            activation=activation, downsample=True)
+        self.block3 = Block(num_features * 2, num_features * 4,
+                            activation=activation, downsample=True)
+        self.block4 = Block(num_features * 4, num_features * 8,
+                            activation=activation, downsample=True)
+
+        # discriminator fc
+        self.fc_class = utils.spectral_norm(nn.Linear(1 * 1 * 512 * 2, num_classes))
+        # aux-classifier fc
+        self.fc_shift = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+
+    def forward_once(self, x):
+        h = x
+        h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        return h
+
+    def forward(self, x1, x2):
+        h1 = self.forward_once(x1)
+        h2 = self.forward_once(x2)
+
+        classes = self.fc_class(torch.cat((h1, h2), dim=1))
+        shifted = self.fc_shift(h2) - self.fc_shift(h1)
+        return classes, shifted
