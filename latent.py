@@ -179,8 +179,6 @@ optimizerR = optim.Adam(netR.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
 dset_name = os.path.split(opt.dataroot)[-1]
 datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
-sampler = ImageSampler(netG, opt)
-get_metrics = prepare_inception_metrics(dataloader, datafile, False, opt.num_inception_images, no_is=False)
 
 losses_class = []
 losses_shift = []
