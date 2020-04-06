@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 from torch.nn import init
+import os
+import sys
 import pdb
 
 # custom weights initialization called on netG and netD
@@ -72,3 +74,33 @@ class ImageSampler:
         self.label.resize_(self.batchSize).copy_(torch.from_numpy(label))
         fake = self.G(self.noise.cuda())
         return fake, self.label
+
+
+def print_options(parser, opt):
+    message = ''
+    message += '--------------- Options -----------------\n'
+    for k, v in sorted(vars(opt).items()):
+        comment = ''
+        default = parser.get_default(k)
+        if v != default:
+            comment = '\t[default: %s]' % str(default)
+        message += '{:>25}: {:<30}{}\n'.format(str(k), str(v), comment)
+    message += '----------------- End -------------------'
+    print(message)
+
+    # save to the disk
+    expr_dir = opt.outf
+    if not os.path.exists(expr_dir):
+        os.makedirs(expr_dir)
+    file_name = os.path.join(expr_dir, 'opt.txt')
+    with open(file_name, 'wt') as opt_file:
+        opt_file.write(message)
+        opt_file.write('\n')
+
+    # save command to disk
+    file_name = os.path.join(expr_dir, 'cmd.sh')
+    with open(file_name, 'wt') as cmd_file:
+        if os.getenv('CUDA_VISIBLE_DEVICES'):
+            cmd_file.write('CUDA_VISIBLE_DEVICES=%s ' % os.getenv('CUDA_VISIBLE_DEVICES'))
+        cmd_file.write(' '.join(sys.argv))
+        cmd_file.write('\n')

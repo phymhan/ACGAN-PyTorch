@@ -16,7 +16,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
-from utils import weights_init, compute_acc, AverageMeter, ImageSampler
+from utils import weights_init, compute_acc, AverageMeter
 from network import _netG, _netG_CIFAR10, EmbeddingNet, ReconstructorConcat, ReconstructorSiamese
 from folder import ImageFolder
 from torch.utils.tensorboard import SummaryWriter
@@ -122,6 +122,7 @@ ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 num_classes = int(opt.num_classes)
 nc = 3
+bs_vis = 5
 
 # Define the generator and initialize the weights
 if opt.dataset == 'imagenet':
@@ -155,7 +156,7 @@ shift_criterion = nn.L1Loss()
 
 # tensor placeholders
 noise = torch.FloatTensor(opt.batchSize, nz, 1, 1)
-eval_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
+eval_noise = torch.FloatTensor(1, nz, 1, 1).normal_(0, 1)
 
 # if using cuda
 if opt.cuda:
@@ -169,9 +170,9 @@ if opt.cuda:
 # define variables
 noise = Variable(noise)
 # noise for evaluation
-eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
+eval_noise_ = np.random.normal(0, 1, (1, nz))
 eval_noise_ = (torch.from_numpy(eval_noise_))
-eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
+eval_noise.data.copy_(eval_noise_.view(1, nz, 1, 1))
 
 # setup optimizer
 optimizerA = optim.Adam(netA.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -227,6 +228,14 @@ for i in range(opt.niter):
         writer.add_scalar('Loss/Class', avg_loss_class.avg, i)
         writer.add_scalar('Loss/Shift', avg_loss_shift.avg, i)
         writer.add_scalar('Acc/Class', avg_loss_acc.avg, i)
+
+        epsilon_linear = torch.from_numpy(np.linspace(-1., 1., bs_vis, dtype=np.float32)).view(bs_vis, 1).cuda()
+
+        for k in range(opt.num_classes):
+            k_ = torch.LongTensor(bs_vis).fill_(k).cuda()
+            noise_interp = eval_noise + (epsilon_linear * netA(k_)).view(bs_vis, nz, 1, 1)
+            img_batch = netG(noise_interp)
+            writer.add_images('Visual/Class_%d' % k, img_batch / 2.0 + 0.5, i)
 
     # do checkpointing
     if i % 10 == 0:

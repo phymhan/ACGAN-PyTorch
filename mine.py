@@ -16,7 +16,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
-from utils import weights_init, compute_acc, AverageMeter, ImageSampler
+from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options
 from network import _netG, _netD, _netT, _netD_CIFAR10, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
 from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32, _netDT_SNResProj32
 from folder import ImageFolder
@@ -61,9 +61,10 @@ parser.add_argument('--use_cy', action='store_true')
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
+parser.add_argument('--bnn_dropout', type=float, default=0.)
 
 opt = parser.parse_args()
-print(opt)
+print_options(parser, opt)
 
 # specify the gpu id if using only 1 gpu
 # if opt.ngpu == 1:
@@ -167,7 +168,7 @@ if opt.dataset == 'imagenet':
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
     if opt.use_shared_T:
         if opt.netD_model == 'proj32':
-            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy)
+            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout)
         elif opt.netD_model == 'basic':
             netD = _netDT_CIFAR10(ngpu, num_classes)
             netD.apply(weights_init)

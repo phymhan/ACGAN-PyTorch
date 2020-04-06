@@ -16,7 +16,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
-from utils import weights_init, compute_acc, AverageMeter, ImageSampler
+from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options
 from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netD_SNRes32
 from folder import ImageFolder
 from torch.utils.tensorboard import SummaryWriter
@@ -49,9 +49,10 @@ parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | snres32]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
+parser.add_argument('--bnn_dropout', type=float, default=0.)
 
 opt = parser.parse_args()
-print(opt)
+print_options(parser, opt)
 
 # specify the gpu id if using only 1 gpu
 # if opt.ngpu == 1:
@@ -155,7 +156,7 @@ if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes, tac=opt.loss_type=='tac')
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
     if opt.netD_model == 'snres32':
-        netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type=='tac')
+        netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type=='tac', dropout=opt.bnn_dropout)
     elif opt.netD_model == 'basic':
         netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
         netD.apply(weights_init)

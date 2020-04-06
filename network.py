@@ -4,7 +4,18 @@ from torch.nn import utils
 from resblocks import Block, OptimizedBlock
 from torch.nn import init
 import torch.nn.functional as F
+import functools
 import pdb
+
+
+# Identity mapping
+class IdentityMapping(nn.Module):
+    def __init__(self, *args):
+        super(IdentityMapping, self).__init__()
+
+    def forward(self, x):
+        return x
+
 
 class _netG(nn.Module):
     def __init__(self, ngpu, nz):
@@ -285,7 +296,7 @@ class _netG_CIFAR10(nn.Module):
 
 
 class _netD_CIFAR10(nn.Module):
-    def __init__(self, ngpu, num_classes=10, tac=False):
+    def __init__(self, ngpu, num_classes=10, tac=False, dropout=0.):
         super(_netD_CIFAR10, self).__init__()
         self.ngpu = ngpu
         self.tac = tac
@@ -538,20 +549,20 @@ class _netDT_CIFAR10(nn.Module):
 
 
 class _netDT_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.):
         super(_netDT_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.use_cy = use_cy
 
-        self.block1 = OptimizedBlock(3, num_features)
+        self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
-                            activation=activation, downsample=True)
+                            activation=activation, downsample=True, dropout=dropout)
         self.block3 = Block(num_features * 2, num_features * 4,
-                            activation=activation, downsample=True)
+                            activation=activation, downsample=True, dropout=dropout)
         self.block4 = Block(num_features * 4, num_features * 8,
-                            activation=activation, downsample=True)
+                            activation=activation, downsample=True, dropout=dropout)
         self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
             self.l_y = utils.spectral_norm(
@@ -596,20 +607,20 @@ class _netDT_SNResProj32(nn.Module):
 
 
 class _netD_SNRes32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.):
         super(_netD_SNRes32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.tac = tac
 
-        self.block1 = OptimizedBlock(3, num_features)
+        self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
-                            activation=activation, downsample=True)
+                            activation=activation, downsample=True, dropout=dropout)
         self.block3 = Block(num_features * 2, num_features * 4,
-                            activation=activation, downsample=True)
+                            activation=activation, downsample=True, dropout=dropout)
         self.block4 = Block(num_features * 4, num_features * 8,
-                            activation=activation, downsample=True)
+                            activation=activation, downsample=True, dropout=dropout)
 
         # discriminator fc
         self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
