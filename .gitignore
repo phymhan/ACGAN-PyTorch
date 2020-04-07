@@ -2,5 +2,5 @@ outputs*
 *.pyc
 *.sw[po]
 datasets
-results
+results*
 __pycache__
