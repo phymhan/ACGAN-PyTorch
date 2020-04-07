@@ -606,6 +606,94 @@ class _netDT_SNResProj32(nn.Module):
             return realfake, classes
 
 
+class _netDT2_SNResProj32(nn.Module):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.):
+        super(_netDT2_SNResProj32, self).__init__()
+        self.num_features = num_features
+        self.num_classes = num_classes
+        self.activation = activation
+        self.use_cy = use_cy
+
+        self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
+        self.block2 = Block(num_features, num_features * 2,
+                            activation=activation, downsample=True, dropout=dropout)
+        self.block3 = Block(num_features * 2, num_features * 4,
+                            activation=activation, downsample=True, dropout=dropout)
+        self.block4 = Block(num_features * 4, num_features * 8,
+                            activation=activation, downsample=True, dropout=dropout)
+        self.l5_P = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        self.l5_Q = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        if num_classes > 0:
+            self.l_y_P = utils.spectral_norm(
+                nn.Embedding(num_classes, num_features * 8))
+            self.c_y_P = utils.spectral_norm(nn.Embedding(num_classes, 1))
+            self.l_y_Q = utils.spectral_norm(
+                nn.Embedding(num_classes, num_features * 8))
+            self.c_y_Q = utils.spectral_norm(nn.Embedding(num_classes, 1))
+        self.ma_et_P = None
+        self.ma_et_Q = None
+
+        # discriminator fc
+        self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+
+        self._initialize()
+
+    def _initialize(self):
+        init.xavier_uniform_(self.l5_P.weight.data)
+        init.xavier_uniform_(self.l5_Q.weight.data)
+        optional_l_y_P = getattr(self, 'l_y_P', None)
+        if optional_l_y_P is not None:
+            init.xavier_uniform_(optional_l_y_P.weight.data)
+        optional_l_y_Q = getattr(self, 'l_y_Q', None)
+        if optional_l_y_Q is not None:
+            init.xavier_uniform_(optional_l_y_Q.weight.data)
+
+    def forward(self, x, y=None, distribution='P'):
+        h = x
+        h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        if y is not None:
+            if distribution == 'P':
+                output = self.l5_P(h)
+                cy = self.c_y_P(y) if self.use_cy else 0.0
+                output += torch.sum(self.l_y_P(y) * h, dim=1, keepdim=True) + cy
+            elif distribution == 'Q':
+                output = self.l5_Q(h)
+                cy = self.c_y_Q(y) if self.use_cy else 0.0
+                output += torch.sum(self.l_y_Q(y) * h, dim=1, keepdim=True) + cy
+            else:
+                raise RuntimeError
+            return output
+        else:
+            realfake = F.sigmoid(self.fc_dis(h))
+            return realfake, None
+
+    def log_prob(self, x, y, distribution='P'):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        if distribution == 'P':
+            output = self.l5_P(h)
+            output += torch.sum(self.l_y_P(y) * h, dim=1, keepdim=True)
+        elif distribution == 'Q':
+            output = self.l5_Q(h)
+            output += torch.sum(self.l_y_Q(y) * h, dim=1, keepdim=True)
+        else:
+            raise RuntimeError
+        return output
+
+
 class _netD_SNRes32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.):
         super(_netD_SNRes32, self).__init__()
@@ -650,11 +738,12 @@ class _netD_SNRes32(nn.Module):
 
 # borrowed from https://github.com/crcrpar/pytorch.sngan_projection/blob/master/models/discriminators/snresnet.py
 class SNResNetProjectionDiscriminator64(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False):
         super(SNResNetProjectionDiscriminator64, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
+        self.use_cy = use_cy
 
         self.block1 = OptimizedBlock(3, num_features)
         self.block2 = Block(num_features, num_features * 2,
@@ -667,9 +756,11 @@ class SNResNetProjectionDiscriminator64(nn.Module):
                             activation=activation, downsample=True)
         self.l6 = utils.spectral_norm(nn.Linear(num_features * 16, 1))
         if num_classes > 0:
-            self.l_y = utils.spectral_norm(
-                nn.Embedding(num_classes, num_features * 16))
+            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 16))
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
         self.ma_et = None
+        self.ma_et_P = None
+        self.ma_et_Q = None
         self._initialize()
 
     def _initialize(self):
@@ -678,7 +769,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
         if optional_l_y is not None:
             init.xavier_uniform_(optional_l_y.weight.data)
 
-    def forward(self, x, y=None):
+    def forward(self, x, y=None, distribution='P'):
         h = x
         h = self.block1(h)
         h = self.block2(h)
@@ -690,16 +781,31 @@ class SNResNetProjectionDiscriminator64(nn.Module):
         h = torch.sum(h, dim=(2, 3))
         output = self.l6(h)
         if y is not None:
-            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
+            cy = self.c_y(y) if self.use_cy else 0.0
+            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
+        return output
+
+    def log_prob(self, x, y, distribution='P'):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.block5(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        output = self.l6(h)
+        output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
         return output
 
 
 class SNResNetProjectionDiscriminator32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
+        self.use_cy = use_cy
 
         self.block1 = OptimizedBlock(3, num_features)
         self.block2 = Block(num_features, num_features * 2,
@@ -710,9 +816,11 @@ class SNResNetProjectionDiscriminator32(nn.Module):
                             activation=activation, downsample=True)
         self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
-            self.l_y = utils.spectral_norm(
-                nn.Embedding(num_classes, num_features * 8))
+            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
         self.ma_et = None
+        self.ma_et_P = None
+        self.ma_et_Q = None
         self._initialize()
 
     def _initialize(self):
@@ -721,9 +829,23 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if optional_l_y is not None:
             init.xavier_uniform_(optional_l_y.weight.data)
 
-    def forward(self, x, y=None):
+    def forward(self, x, y=None, distribution='P'):
         h = x
         h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        output = self.l5(h)
+        if y is not None:
+            cy = self.c_y(y) if self.use_cy else 0.0
+            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
+        return output
+
+    def log_prob(self, x, y, distribution='P'):
+        h = self.block1(x)
         h = self.block2(h)
         h = self.block3(h)
         h = self.block4(h)

@@ -1,0 +1,1 @@
+mine2.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 200 --outf results_y/cifar10/share_0.1_pearson --netD_model snres32 --visualize_class_label 0 --adaptive --lambda_y_grad 0.1 --netT_model proj32 --use_cy --f_div pearson --batchSize 1
