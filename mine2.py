@@ -359,7 +359,6 @@ for epoch in range(opt.niter):
         logr = logP - logQ
         r = torch.exp(logr)
 
-        fr = 0.
         if opt.f_div == 'kl':
             fr = r * logr
         elif opt.f_div == 'revkl':
@@ -372,6 +371,7 @@ for epoch in range(opt.niter):
             fr = -(r + 1) * torch.log(0.5 * r + 0.5) + r * logr
         else:
             raise NotImplementedError
+        fr = fr.mean()
 
         errG = dis_errG + opt.lambda_y * fr
 
