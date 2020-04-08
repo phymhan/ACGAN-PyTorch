@@ -62,7 +62,8 @@ parser.add_argument('--netD_model', type=str, default='basic', help='[basic | pr
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
-parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pearson | squared | jsd]')
+parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pearson | squared | jsd | gan]')
+parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -294,8 +295,13 @@ for epoch in range(opt.niter):
         D_x = dis_output.data.mean()
 
         # get fake
+        if opt.shuffle_label == 'shuffle':
+            label = label[torch.randperm(batch_size), ...].cpu().numpy()
+        elif opt.shuffle_label == 'sample':
+            label = np.random.randint(0, num_classes, batch_size)
+        elif opt.shuffle_label == 'same':
+            label = label.cpu().numpy()
         noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-        label = np.random.randint(0, num_classes, batch_size)
         noise_ = np.random.normal(0, 1, (batch_size, nz))
         class_onehot = np.zeros((batch_size, num_classes))
         class_onehot[np.arange(batch_size), label] = 1
@@ -368,7 +374,9 @@ for epoch in range(opt.niter):
         elif opt.f_div == 'squared':
             fr = (r.sqrt() - 1).pow(2)
         elif opt.f_div == 'jsd':
-            fr = -(r + 1) * torch.log(0.5 * r + 0.5) + r * logr
+            fr = -(r + 1.0) * torch.log(0.5 * r + 0.5) + r * logr
+        elif opt.f_div == 'gan':
+            fr = r * logr - (r + 1.0) * torch.log(r + 1.0)
         else:
             raise NotImplementedError
         fr = fr.mean()

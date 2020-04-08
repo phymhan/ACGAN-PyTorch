@@ -62,6 +62,7 @@ parser.add_argument('--netD_model', type=str, default='basic', help='[basic | pr
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
+parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -302,8 +303,13 @@ for epoch in range(opt.niter):
         accuracy = compute_acc(aux_output, aux_label)
 
         # train with fake
+        if opt.shuffle_label == 'shuffle':
+            label = label[torch.randperm(batch_size), ...].cpu().numpy()
+        elif opt.shuffle_label == 'sample':
+            label = np.random.randint(0, num_classes, batch_size)
+        elif opt.shuffle_label == 'same':
+            label = label.cpu().numpy()
         noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-        label = np.random.randint(0, num_classes, batch_size)
         noise_ = np.random.normal(0, 1, (batch_size, nz))
         class_onehot = np.zeros((batch_size, num_classes))
         class_onehot[np.arange(batch_size), label] = 1
