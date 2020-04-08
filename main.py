@@ -17,10 +17,11 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options
-from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netD_SNRes32
+from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netD_SNRes32, SNResNetProjectionDiscriminator32
 from folder import ImageFolder
 from torch.utils.tensorboard import SummaryWriter
 from inception import prepare_inception_metrics
+import torch.nn.functional as F
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -42,7 +43,7 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
-parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac]')
+parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac | cgan]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--download_dset', action='store_true')
@@ -156,13 +157,19 @@ print(netG)
 if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes, tac=opt.loss_type=='tac')
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
-    if opt.netD_model == 'snres32':
-        netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type=='tac', dropout=opt.bnn_dropout)
-    elif opt.netD_model == 'basic':
-        netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type=='tac')
-        netD.apply(weights_init)
+    if opt.loss_type == 'cgan':
+        if opt.netD_model == 'snres32':
+            netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False)
+        else:
+            raise NotImplementedError
     else:
-        raise NotImplementedError
+        if opt.netD_model == 'snres32':
+            netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout)
+        elif opt.netD_model == 'basic':
+            netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
+            netD.apply(weights_init)
+        else:
+            raise NotImplementedError
 else:
     raise NotImplementedError
 if opt.netD != '':
@@ -170,7 +177,7 @@ if opt.netD != '':
 print(netD)
 
 # loss functions
-dis_criterion = nn.BCELoss()
+dis_criterion = nn.BCEWithLogitsLoss()
 aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
@@ -243,19 +250,28 @@ for epoch in range(opt.niter):
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label)
             aux_label.resize_(batch_size).copy_(label)
-        if tac:
+        if opt.loss_type == 'cgan':
+            dis_output = netD(input, aux_label)
+        elif opt.loss_type == 'tac':
             dis_output, aux_output, _ = netD(input)
-        else:
+        elif opt.loss_type == 'ac':
             dis_output, aux_output = netD(input)
-
+        else:
+            raise RuntimeError
         dis_errD_real = dis_criterion(dis_output, dis_label)
-        aux_errD_real = aux_criterion(aux_output, aux_label)
+        if opt.loss_type == 'cgan':
+            aux_errD_real = 0.
+        else:
+            aux_errD_real = aux_criterion(aux_output, aux_label)
         errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
-        D_x = dis_output.data.mean()
+        D_x = F.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
-        accuracy = compute_acc(aux_output, aux_label)
+        if opt.loss_type == 'cgan':
+            accuracy = 1. / opt.num_classes
+        else:
+            accuracy = compute_acc(aux_output, aux_label)
 
         # get fake
         if opt.shuffle_label == 'shuffle':
@@ -276,18 +292,27 @@ for epoch in range(opt.niter):
 
         # train with fake
         dis_label.fill_(fake_label)
-        if tac:
+        if opt.loss_type == 'cgan':
+            dis_output = netD(fake.detach(), aux_label)
+            tac_errD_fake = 0.
+        elif opt.loss_type == 'tac':
             dis_output, aux_output, tac_output = netD(fake.detach())
             # tac on fake
             tac_errD_fake = aux_criterion(tac_output, aux_label)
-        else:
+        elif opt.loss_type == 'ac':
             dis_output, aux_output = netD(fake.detach())
             tac_errD_fake = 0.
+        else:
+            raise RuntimeError
+
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        aux_errD_fake = aux_criterion(aux_output, aux_label)
+        if opt.loss_type == 'cgan':
+            aux_errD_fake = 0.
+        else:
+            aux_errD_fake = aux_criterion(aux_output, aux_label)
         errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
         errD_fake.backward()
-        D_G_z1 = dis_output.data.mean()
+        D_G_z1 = F.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
         optimizerD.step()
 
@@ -296,17 +321,25 @@ for epoch in range(opt.niter):
         ###########################
         netG.zero_grad()
         dis_label.data.fill_(real_label)  # fake labels are real for generator cost
-        if tac:
+        if opt.loss_type == 'cgan':
+            dis_output = netD(fake, aux_label)
+            tac_errG = 0.
+        elif opt.loss_type == 'tac':
             dis_output, aux_output, tac_output = netD(fake)
             tac_errG = aux_criterion(tac_output, aux_label)
-        else:
+        elif opt.loss_type == 'ac':
             dis_output, aux_output = netD(fake)
             tac_errG = 0.
+        else:
+            raise RuntimeError
         dis_errG = dis_criterion(dis_output, dis_label)
-        aux_errG = aux_criterion(aux_output, aux_label)
+        if opt.loss_type == 'cgan':
+            aux_errG = 0.
+        else:
+            aux_errG = aux_criterion(aux_output, aux_label)
         errG = dis_errG + aux_errG - opt.lambda_tac * tac_errG
         errG.backward()
-        D_G_z2 = dis_output.data.mean()
+        D_G_z2 = F.sigmoid(dis_output).data.mean()
         optimizerG.step()
 
         # compute the average loss

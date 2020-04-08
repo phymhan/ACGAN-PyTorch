@@ -134,7 +134,7 @@ class _netD(nn.Module):
         self.fc_tac = nn.Linear(13 * 13 * 512, num_classes) if self.tac else None
         # softmax and sigmoid
         # self.softmax = nn.Softmax()
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, input):
         if isinstance(input.data, torch.cuda.FloatTensor) and self.ngpu > 1:
@@ -160,7 +160,7 @@ class _netD(nn.Module):
             fc_aux = self.fc_aux(flat6)
             fc_tac = self.fc_tac(flat6) if self.tac else None
         classes = fc_aux
-        realfake = self.sigmoid(fc_dis)
+        realfake = fc_dis.squeeze()
         if self.tac:
             classes_twin = fc_tac
             return realfake, classes, classes_twin
@@ -350,7 +350,7 @@ class _netD_CIFAR10(nn.Module):
         self.fc_tac = nn.Linear(4*4*512, num_classes) if self.tac else None
         # softmax and sigmoid
         # self.softmax = nn.Softmax()
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, input):
         if isinstance(input.data, torch.cuda.FloatTensor) and self.ngpu > 1:
@@ -376,7 +376,7 @@ class _netD_CIFAR10(nn.Module):
             fc_aux = self.fc_aux(flat6)
             fc_tac = self.fc_tac(flat6) if self.tac else None
         classes = fc_aux
-        realfake = self.sigmoid(fc_dis)
+        realfake = fc_dis.squeeze()
         if self.tac:
             classes_twin = fc_tac
             return realfake, classes, classes_twin
@@ -520,7 +520,7 @@ class _netDT_CIFAR10(nn.Module):
         # mine fc
         self.fc_mine = nn.Linear(4*4*512, 1)
         # softmax and sigmoid
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
         self.ma_et = None
 
     def forward(self, x, y=None):
@@ -544,7 +544,7 @@ class _netDT_CIFAR10(nn.Module):
             fc_dis = self.fc_dis(flat6)
             fc_aux = self.fc_aux(flat6)
             classes = fc_aux
-            realfake = self.sigmoid(fc_dis)
+            realfake = fc_dis.squeeze()
             return realfake, classes
 
 
@@ -601,13 +601,13 @@ class _netDT_SNResProj32(nn.Module):
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
             return output
         else:
-            realfake = F.sigmoid(self.fc_dis(h))
+            realfake = self.fc_dis(h).squeeze()
             classes = self.fc_aux(h)
             return realfake, classes
 
 
 class _netDT2_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, tac=False, dropout=0.):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, tac=False, dropout=0.):
         super(_netDT2_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -676,7 +676,7 @@ class _netDT2_SNResProj32(nn.Module):
                 raise RuntimeError
             return output
         else:
-            realfake = F.sigmoid(self.fc_dis(h))
+            realfake = self.fc_dis(h).squeeze()
             classes = self.fc_aux(h)
             if self.tac:
                 classes_twin = self.tac_aux(h)
@@ -737,7 +737,7 @@ class _netD_SNRes32(nn.Module):
         # Global pooling
         h = torch.sum(h, dim=(2, 3))
 
-        realfake = F.sigmoid(self.fc_dis(h))
+        realfake = self.fc_dis(h).squeeze()
         classes = self.fc_aux(h)
         if self.tac:
             classes_twin = self.tac_aux(h)
@@ -767,7 +767,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
         self.l6 = utils.spectral_norm(nn.Linear(num_features * 16, 1))
         if num_classes > 0:
             self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 16))
-            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if use_cy else None
         self.ma_et = None
         self.ma_et_P = None
         self.ma_et_Q = None
@@ -806,7 +806,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
         h = torch.sum(h, dim=(2, 3))
         output = self.l6(h)
         output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
-        return output
+        return output.squeeze()
 
 
 class SNResNetProjectionDiscriminator32(nn.Module):
@@ -827,7 +827,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
             self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
-            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if use_cy else None
         self.ma_et = None
         self.ma_et_P = None
         self.ma_et_Q = None
@@ -852,7 +852,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if y is not None:
             cy = self.c_y(y) if self.use_cy else 0.0
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
-        return output
+        return output.squeeze()
 
     def log_prob(self, x, y, distribution='P'):
         h = self.block1(x)
@@ -865,7 +865,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         output = self.l5(h)
         if y is not None:
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
-        return output
+        return output.squeeze()
 
 
 ## Latent

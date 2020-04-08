@@ -21,6 +21,7 @@ from network import _netG, _netD, _netD_CIFAR10, _netG_CIFAR10, _netD_SNRes32
 from folder import ImageFolder
 from torch.utils.tensorboard import SummaryWriter
 from inception import prepare_inception_metrics
+import torch.nn.functional as F
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -167,7 +168,7 @@ if opt.netD != '':
 print(netD)
 
 # loss functions
-dis_criterion = nn.BCELoss()
+dis_criterion = nn.BCEWithLogitsLoss()
 aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
@@ -232,7 +233,7 @@ for epoch in range(opt.niter):
         dis_errD_real = dis_criterion(dis_output, dis_label)
         errD_real = dis_errD_real
         errD_real.backward()
-        D_x = dis_output.data.mean()
+        D_x = F.sigmoid(dis_output).data.mean()
 
         # train with fake
         noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
@@ -247,7 +248,7 @@ for epoch in range(opt.niter):
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         errD_fake = dis_errD_fake
         errD_fake.backward()
-        D_G_z1 = dis_output.data.mean()
+        D_G_z1 = F.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
         optimizerD.step()
 
@@ -260,7 +261,7 @@ for epoch in range(opt.niter):
         dis_errG = dis_criterion(dis_output, dis_label)
         errG = dis_errG
         errG.backward()
-        D_G_z2 = dis_output.data.mean()
+        D_G_z2 = F.sigmoid(dis_output).data.mean()
         optimizerG.step()
 
         # compute the average loss
