@@ -63,6 +63,7 @@ parser.add_argument('--netT_model', type=str, default='concat', help='[concat | 
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pearson | squared | jsd | gan]')
+parser.add_argument('--f_div_conj', action='store_true')
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 
 opt = parser.parse_args()
@@ -365,20 +366,32 @@ for epoch in range(opt.niter):
         logr = logP - logQ
         r = torch.exp(logr)
 
-        if opt.f_div == 'kl':
-            fr = r * logr
-        elif opt.f_div == 'revkl':
-            fr = -logr
-        elif opt.f_div == 'pearson':
-            fr = (r - 1).pow(2)
-        elif opt.f_div == 'squared':
-            fr = (r.sqrt() - 1).pow(2)
-        elif opt.f_div == 'jsd':
-            fr = -(r + 1.0) * torch.log(0.5 * r + 0.5) + r * logr
-        elif opt.f_div == 'gan':
-            fr = r * logr - (r + 1.0) * torch.log(r + 1.0)
+        if opt.f_div_conj:
+            if opt.f_div == 'kl':
+                fr = r
+            elif opt.f_div == 'revkl':
+                fr = logr - 1.0
+            elif opt.f_div == 'pearson':
+                fr = r.pow(2) - 1.0
+            elif opt.f_div == 'squared':
+                fr = r.sqrt() - 1.0
+            else:
+                raise NotImplementedError
         else:
-            raise NotImplementedError
+            if opt.f_div == 'kl':
+                fr = r * logr
+            elif opt.f_div == 'revkl':
+                fr = -logr
+            elif opt.f_div == 'pearson':
+                fr = (r - 1).pow(2)
+            elif opt.f_div == 'squared':
+                fr = (r.sqrt() - 1).pow(2)
+            elif opt.f_div == 'jsd':
+                fr = -(r + 1.0) * torch.log(0.5 * r + 0.5) + r * logr
+            elif opt.f_div == 'gan':
+                fr = r * logr - (r + 1.0) * torch.log(r + 1.0)
+            else:
+                raise NotImplementedError
         fr = fr.mean()
 
         errG = dis_errG + opt.lambda_y * fr
