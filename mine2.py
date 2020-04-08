@@ -171,7 +171,7 @@ if opt.dataset == 'imagenet':
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
     if opt.use_shared_T:
         if opt.netD_model == 'proj32':
-            netD = _netDT2_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout)
+            netD = _netDT2_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout)
         else:
             raise NotImplementedError
     else:
@@ -290,7 +290,10 @@ for epoch in range(opt.niter):
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label_const)
             real_label.resize_(batch_size).copy_(label)
-        dis_output, aux_output = netD(input)
+        if opt.loss_type == 'tac':
+            dis_output, aux_output, _ = netD(input)
+        else:
+            dis_output, aux_output = netD(input)
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
         if opt.loss_type == 'none':
@@ -320,14 +323,18 @@ for epoch in range(opt.niter):
 
         # train with fake
         dis_label.fill_(fake_label_const)
-        dis_output, _ = netD(fake.detach())
+        if opt.loss_type == 'tac':
+            dis_output, aux_output, tac_output = netD(fake.detach())
+            tac_errD_fake = aux_criterion(tac_output, fake_label)
+        else:
+            dis_output, aux_output = netD(input)
+            tac_errD_fake = 0.
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         if opt.loss_type == 'none':
             aux_errD_fake = 0.
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
-
-        errD_fake = dis_errD_fake + aux_errD_fake
+        errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
         errD_fake.backward()
         D_G_z1 = dis_output.data.mean()
         errD = errD_real + errD_fake

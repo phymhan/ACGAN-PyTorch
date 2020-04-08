@@ -607,12 +607,13 @@ class _netDT_SNResProj32(nn.Module):
 
 
 class _netDT2_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, tac=False, dropout=0.):
         super(_netDT2_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.use_cy = use_cy
+        self.tac = tac
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -635,6 +636,10 @@ class _netDT2_SNResProj32(nn.Module):
 
         # discriminator fc
         self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+        # aux-classifier fc
+        self.fc_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+        # twin aux-classifier fc
+        self.tac_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes)) if tac else None
 
         self._initialize()
 
@@ -672,7 +677,12 @@ class _netDT2_SNResProj32(nn.Module):
             return output
         else:
             realfake = F.sigmoid(self.fc_dis(h))
-            return realfake, None
+            classes = self.fc_aux(h)
+            if self.tac:
+                classes_twin = self.tac_aux(h)
+                return realfake, classes, classes_twin
+            else:
+                return realfake, classes
 
     def log_prob(self, x, y, distribution='P'):
         h = self.block1(x)

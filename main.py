@@ -260,7 +260,7 @@ for epoch in range(opt.niter):
         # get fake
         if opt.shuffle_label == 'shuffle':
             label = label[torch.randperm(batch_size), ...].cpu().numpy()
-        elif opt.shuffle_label == 'sample':
+        elif opt.shuffle_label == 'uniform':
             label = np.random.randint(0, num_classes, batch_size)
         elif opt.shuffle_label == 'same':
             label = label.cpu().numpy()
