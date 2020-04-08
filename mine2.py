@@ -46,7 +46,7 @@ parser.add_argument('--netT', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
-parser.add_argument('--loss_type', type=str, default='mine', help='[ac | tac | mine]')
+parser.add_argument('--loss_type', type=str, default='none', help='[ac | tac | mine | none]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
 parser.add_argument('--lambda_y_grad', type=float, default=1.)
@@ -212,6 +212,7 @@ print(netTP)
 
 # loss functions
 dis_criterion = nn.BCELoss()
+aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -230,6 +231,7 @@ if opt.cuda:
     netTP.cuda()
     netTQ.cuda()
     dis_criterion.cuda()
+    aux_criterion.cuda()
     input, dis_label, real_label, fake_label = input.cuda(), dis_label.cuda(), real_label.cuda(), fake_label.cuda()
     noise, eval_noise = noise.cuda(), eval_noise.cuda()
 
@@ -288,17 +290,21 @@ for epoch in range(opt.niter):
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label_const)
             real_label.resize_(batch_size).copy_(label)
-        dis_output, _ = netD(input)
+        dis_output, aux_output = netD(input)
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
-        errD_real = dis_errD_real
+        if opt.loss_type == 'none':
+            aux_errD_real = 0.
+        else:
+            aux_errD_real = aux_criterion(aux_output, real_label)
+        errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
         D_x = dis_output.data.mean()
 
         # get fake
         if opt.shuffle_label == 'shuffle':
             label = label[torch.randperm(batch_size), ...].cpu().numpy()
-        elif opt.shuffle_label == 'sample':
+        elif opt.shuffle_label == 'uniform':
             label = np.random.randint(0, num_classes, batch_size)
         elif opt.shuffle_label == 'same':
             label = label.cpu().numpy()
@@ -316,7 +322,12 @@ for epoch in range(opt.niter):
         dis_label.fill_(fake_label_const)
         dis_output, _ = netD(fake.detach())
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        errD_fake = dis_errD_fake
+        if opt.loss_type == 'none':
+            aux_errD_fake = 0.
+        else:
+            aux_errD_fake = aux_criterion(aux_output, fake_label)
+
+        errD_fake = dis_errD_fake + aux_errD_fake
         errD_fake.backward()
         D_G_z1 = dis_output.data.mean()
         errD = errD_real + errD_fake

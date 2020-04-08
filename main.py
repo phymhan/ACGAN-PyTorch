@@ -285,10 +285,10 @@ for epoch in range(opt.niter):
             tac_errD_fake = 0.
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         aux_errD_fake = aux_criterion(aux_output, aux_label)
-        errD_fake = dis_errD_fake + aux_errD_fake
+        errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
         errD_fake.backward()
         D_G_z1 = dis_output.data.mean()
-        errD = errD_real + errD_fake + tac_errD_fake
+        errD = errD_real + errD_fake
         optimizerD.step()
 
         ############################
