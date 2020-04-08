@@ -160,7 +160,7 @@ class _netD(nn.Module):
             fc_aux = self.fc_aux(flat6)
             fc_tac = self.fc_tac(flat6) if self.tac else None
         classes = fc_aux
-        realfake = fc_dis.squeeze()
+        realfake = fc_dis.squeeze(1)
         if self.tac:
             classes_twin = fc_tac
             return realfake, classes, classes_twin
@@ -376,7 +376,7 @@ class _netD_CIFAR10(nn.Module):
             fc_aux = self.fc_aux(flat6)
             fc_tac = self.fc_tac(flat6) if self.tac else None
         classes = fc_aux
-        realfake = fc_dis.squeeze()
+        realfake = fc_dis.squeeze(1)
         if self.tac:
             classes_twin = fc_tac
             return realfake, classes, classes_twin
@@ -544,7 +544,7 @@ class _netDT_CIFAR10(nn.Module):
             fc_dis = self.fc_dis(flat6)
             fc_aux = self.fc_aux(flat6)
             classes = fc_aux
-            realfake = fc_dis.squeeze()
+            realfake = fc_dis.squeeze(1)
             return realfake, classes
 
 
@@ -601,7 +601,7 @@ class _netDT_SNResProj32(nn.Module):
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
             return output
         else:
-            realfake = self.fc_dis(h).squeeze()
+            realfake = self.fc_dis(h).squeeze(1)
             classes = self.fc_aux(h)
             return realfake, classes
 
@@ -676,7 +676,7 @@ class _netDT2_SNResProj32(nn.Module):
                 raise RuntimeError
             return output
         else:
-            realfake = self.fc_dis(h).squeeze()
+            realfake = self.fc_dis(h).squeeze(1)
             classes = self.fc_aux(h)
             if self.tac:
                 classes_twin = self.tac_aux(h)
@@ -701,7 +701,7 @@ class _netDT2_SNResProj32(nn.Module):
             output += torch.sum(self.l_y_Q(y) * h, dim=1, keepdim=True)
         else:
             raise RuntimeError
-        return output
+        return output.squeeze(1)
 
 
 class _netD_SNRes32(nn.Module):
@@ -737,7 +737,7 @@ class _netD_SNRes32(nn.Module):
         # Global pooling
         h = torch.sum(h, dim=(2, 3))
 
-        realfake = self.fc_dis(h).squeeze()
+        realfake = self.fc_dis(h).squeeze(1)
         classes = self.fc_aux(h)
         if self.tac:
             classes_twin = self.tac_aux(h)
@@ -793,7 +793,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
         if y is not None:
             cy = self.c_y(y) if self.use_cy else 0.0
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
-        return output
+        return output.squeeze(1)
 
     def log_prob(self, x, y, distribution='P'):
         h = self.block1(x)
@@ -806,7 +806,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
         h = torch.sum(h, dim=(2, 3))
         output = self.l6(h)
         output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
-        return output.squeeze()
+        return output.squeeze(1)
 
 
 class SNResNetProjectionDiscriminator32(nn.Module):
@@ -852,7 +852,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if y is not None:
             cy = self.c_y(y) if self.use_cy else 0.0
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
-        return output.squeeze()
+        return output.squeeze(1)
 
     def log_prob(self, x, y, distribution='P'):
         h = self.block1(x)
@@ -865,7 +865,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         output = self.l5(h)
         if y is not None:
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
-        return output.squeeze()
+        return output.squeeze(1)
 
 
 ## Latent
