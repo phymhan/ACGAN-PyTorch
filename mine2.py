@@ -49,8 +49,8 @@ parser.add_argument('--num_classes', type=int, default=10, help='Number of class
 parser.add_argument('--loss_type', type=str, default='none', help='[ac | tac | mine | none]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
-parser.add_argument('--lambda_y_grad', type=float, default=1.)
-parser.add_argument('--lambda_y', type=float, default=1.)
+# parser.add_argument('--lambda_r_grad', type=float, default=1.)
+parser.add_argument('--lambda_r', type=float, default=1.)
 parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')
 parser.add_argument('--n_update_mine', type=int, default=1, help='how many updates on mine in each iteration')
@@ -65,6 +65,8 @@ parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pearson | squared | jsd | gan]')
 parser.add_argument('--f_div_conj', action='store_true')
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
+parser.add_argument('--lambda_tac', type=float, default=1.0)
+parser.add_argument('--lambda_mi', type=float, default=1.0)
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -268,12 +270,14 @@ losses_D = []
 losses_G = []
 losses_IP = []
 losses_IQ = []
+losses_A = []
 losses_F = []
 losses_IS_mean = []
 losses_IS_std = []
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
+    avg_loss_A = AverageMeter()
     avg_loss_IP = AverageMeter()
     avg_loss_IQ = AverageMeter()
     for i, data in enumerate(dataloader, 0):
@@ -303,6 +307,9 @@ for epoch in range(opt.niter):
         errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
         D_x = dis_output.data.mean()
+
+        # compute the current classification accuracy
+        accuracy = compute_acc(aux_output, real_label)
 
         # get fake
         if opt.shuffle_label == 'shuffle':
@@ -376,8 +383,22 @@ for epoch in range(opt.niter):
         ###########################
         netG.zero_grad()
         dis_label.data.fill_(real_label_const)  # fake labels are real for generator cost
-        dis_output, _ = netD(fake)
+        if opt.loss_type == 'tac':
+            dis_output, aux_output, tac_output = netD(fake)
+            tac_errG = aux_criterion(tac_output, fake_label)
+        else:
+            dis_output, aux_output = netD(fake)
+            tac_errG = 0.
         dis_errG = dis_criterion(dis_output, dis_label)
+        if opt.loss_type == 'none':
+            aux_errG = 0.
+        else:
+            aux_errG = aux_criterion(aux_output, fake_label)
+        if opt.loss_type == 'mine':
+            y_bar = y[torch.randperm(batch_size), ...]
+            miQ_errG = torch.mean(netTQ(fake, y, 'Q')) - torch.log(torch.mean(torch.exp(netTQ(fake, y_bar, 'Q'))))
+        else:
+            miQ_errG = 0.
 
         logP = netTP.log_prob(fake, fake_label, 'P')
         logQ = netTQ.log_prob(fake, fake_label, 'Q')
@@ -412,20 +433,79 @@ for epoch in range(opt.niter):
                 raise NotImplementedError
         fr = fr.mean()
 
-        errG = dis_errG + opt.lambda_y * fr
+        errG = dis_errG + aux_errG - opt.lambda_tac * tac_errG + opt.lambda_mi * miQ_errG + opt.lambda_r * fr
 
         # adaptive
         if opt.adaptive:
-            loss_G_u = dis_errG
-            grad_u = autograd.grad(loss_G_u, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_y = autograd.grad(opt.lambda_y_grad * fr, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
-            grad_y_flattened = torch.cat([g.view(-1) for g in grad_y])
-            grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
-            grad_y_norm = grad_y_flattened.pow(2).sum().sqrt()
-            grad_a_ratio = torch.min(grad_u_norm, grad_y_norm) / grad_y_norm * opt.lambda_y
-            for p, g_u, g_y in zip(netG.parameters(), grad_u, grad_y):
-                p.grad = g_u + g_y * grad_a_ratio
+            if opt.loss_type == 'none':
+                grad_u = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_r = autograd.grad(opt.lambda_r * fr, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
+                grad_r_flattened = torch.cat([g.view(-1) for g in grad_r])
+                grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
+                grad_r_norm = grad_r_flattened.pow(2).sum().sqrt()
+                grad_r_ratio = torch.min(grad_u_norm, grad_r_norm) / grad_r_norm
+                for p, g_u, g_r in zip(netG.parameters(), grad_u, grad_r):
+                    p.grad = g_u + g_r * grad_r_ratio
+            elif opt.loss_type == 'ac':
+                grad_u = autograd.grad(dis_errG + aux_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_r = autograd.grad(opt.lambda_r * fr, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
+                grad_r_flattened = torch.cat([g.view(-1) for g in grad_r])
+                grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
+                grad_r_norm = grad_r_flattened.pow(2).sum().sqrt()
+                grad_r_ratio = torch.min(grad_u_norm, grad_r_norm) / grad_r_norm
+                for p, g_d, g_c, g_r in zip(netG.parameters(), grad_d, grad_c, grad_r):
+                    p.grad = g_d + g_c + g_r * grad_r_ratio
+            elif opt.loss_type == 'tac':
+                grad_u = autograd.grad(dis_errG + aux_errG - opt.lambda_tac * tac_errG, netG.parameters(),
+                                       create_graph=True, retain_graph=True, only_inputs=True)
+                grad_r = autograd.grad(opt.lambda_r * fr, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_c2 = autograd.grad(-opt.lambda_tac * tac_errG, netG.parameters(), create_graph=True,
+                                         retain_graph=True, only_inputs=True)
+                grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
+                grad_r_flattened = torch.cat([g.view(-1) for g in grad_r])
+                grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
+                grad_r_norm = grad_r_flattened.pow(2).sum().sqrt()
+                grad_r_ratio = torch.min(grad_u_norm, grad_r_norm) / grad_r_norm
+                for p, g_d, g_c, g_c2, g_r in zip(netG.parameters(), grad_d, grad_c, grad_c2, grad_r):
+                    p.grad = g_d + g_c + g_c2 + g_r * grad_r_ratio
+            elif opt.loss_type == 'mine':
+                grad_u = autograd.grad(dis_errG + aux_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_r = autograd.grad(opt.lambda_r * fr, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True,
+                                       only_inputs=True)
+                grad_m = autograd.grad(opt.lambda_mi * miQ_errG, netG.parameters(), create_graph=True,
+                                       retain_graph=True, only_inputs=True)
+                grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
+                grad_r_flattened = torch.cat([g.view(-1) for g in grad_r])
+                grad_m_flattened = torch.cat([g.view(-1) for g in grad_m])
+                grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
+                grad_r_norm = grad_r_flattened.pow(2).sum().sqrt()
+                grad_m_norm = grad_m_flattened.pow(2).sum().sqrt()
+                grad_r_ratio = torch.min(grad_u_norm, grad_r_norm) / grad_r_norm
+                grad_m_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
+                for p, g_d, g_c, g_m, g_r in zip(netG.parameters(), grad_d, grad_c, grad_m, grad_r):
+                    p.grad = g_d + g_c + g_r * grad_m_ratio + g_r * grad_r_ratio
+            else:
+                raise NotImplementedError
         else:
             errG.backward()
         optimizerG.step()
@@ -434,12 +514,14 @@ for epoch in range(opt.niter):
         # compute the average loss
         avg_loss_G.update(errG.item(), batch_size)
         avg_loss_D.update(errD.item(), batch_size)
+        avg_loss_A.update(accuracy, batch_size)
         avg_loss_IP.update(mi_P.item(), batch_size)
         avg_loss_IQ.update(mi_Q.item(), batch_size)
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f IP: %.4f (%.4f) IQ: %.4f (%.4f)'
+        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f IP: %.4f (%.4f) IQ: %.4f (%.4f) Acc: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2, mi_P.item(), avg_loss_IP.avg, mi_Q.item(), avg_loss_IQ.avg))
+                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2,
+                 mi_P.item(), avg_loss_IP.avg, mi_Q.item(), avg_loss_IQ.avg, accuracy, avg_loss_A.avg))
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
@@ -455,12 +537,14 @@ for epoch in range(opt.niter):
                                        prints=True, use_torch=False)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
+    writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
     writer.add_scalar('Metric/IP', avg_loss_IP.avg, epoch)
     writer.add_scalar('Metric/IQ', avg_loss_IQ.avg, epoch)
     writer.add_scalar('Metric/FID', fid, epoch)
     writer.add_scalar('Metric/IS', is_mean, epoch)
     losses_G.append(avg_loss_G.avg)
     losses_D.append(avg_loss_D.avg)
+    losses_A.append(avg_loss_A.avg)
     losses_IP.append(avg_loss_IP.avg)
     losses_IQ.append(avg_loss_IQ.avg)
     losses_F.append(fid)
@@ -473,6 +557,7 @@ for epoch in range(opt.niter):
         torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf, epoch))
     np.save(f'{opt.outf}/losses_G.npy', np.array(losses_G))
     np.save(f'{opt.outf}/losses_D.npy', np.array(losses_D))
+    np.save(f'{opt.outf}/losses_A.npy', np.array(losses_A))
     np.save(f'{opt.outf}/losses_IP.npy', np.array(losses_IP))
     np.save(f'{opt.outf}/losses_IQ.npy', np.array(losses_IQ))
     np.save(f'{opt.outf}/losses_F.npy', np.array(losses_F))

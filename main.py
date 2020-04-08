@@ -320,7 +320,7 @@ for epoch in range(opt.niter):
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
-            print('Label for eval = {}'.format(eval_label))
+            # print('Label for eval = {}'.format(eval_label))
             fake = netG(eval_noise)
             vutils.save_image(
                 fake.data,
@@ -349,5 +349,6 @@ for epoch in range(opt.niter):
     np.save(f'{opt.outf}/losses_G.npy', np.array(losses_G))
     np.save(f'{opt.outf}/losses_D.npy', np.array(losses_D))
     np.save(f'{opt.outf}/losses_A.npy', np.array(losses_A))
+    np.save(f'{opt.outf}/losses_F.npy', np.array(losses_F))
     np.save(f'{opt.outf}/losses_I_mean.npy', np.array(losses_I_mean))
     np.save(f'{opt.outf}/losses_I_std.npy', np.array(losses_I_std))
