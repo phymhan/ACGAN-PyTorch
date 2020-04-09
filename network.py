@@ -549,7 +549,8 @@ class _netDT_CIFAR10(nn.Module):
 
 
 class _netDT_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.,
+                 sn_emb_l=True, sn_emb_c=True):
         super(_netDT_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -565,11 +566,8 @@ class _netDT_SNResProj32(nn.Module):
                             activation=activation, downsample=True, dropout=dropout)
         self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
-            self.l_y = utils.spectral_norm(
-                nn.Embedding(num_classes, num_features * 8))
-            # self.c_y = nn.Embedding(num_classes, 1)
-            self.c_y = utils.spectral_norm(
-                nn.Embedding(num_classes, 1))
+            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
         self.ma_et = None
 
         # discriminator fc
@@ -607,7 +605,8 @@ class _netDT_SNResProj32(nn.Module):
 
 
 class _netDT2_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, tac=False, dropout=0.):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, tac=False, dropout=0.,
+                 sn_emb_l=True, sn_emb_c=True):
         super(_netDT2_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -625,12 +624,10 @@ class _netDT2_SNResProj32(nn.Module):
         self.l5_P = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         self.l5_Q = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
-            self.l_y_P = utils.spectral_norm(
-                nn.Embedding(num_classes, num_features * 8))
-            self.c_y_P = utils.spectral_norm(nn.Embedding(num_classes, 1))
-            self.l_y_Q = utils.spectral_norm(
-                nn.Embedding(num_classes, num_features * 8))
-            self.c_y_Q = utils.spectral_norm(nn.Embedding(num_classes, 1))
+            self.l_y_P = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
+            self.c_y_P = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
+            self.l_y_Q = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
+            self.c_y_Q = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
         self.ma_et_P = None
         self.ma_et_Q = None
 
@@ -748,7 +745,7 @@ class _netD_SNRes32(nn.Module):
 
 # borrowed from https://github.com/crcrpar/pytorch.sngan_projection/blob/master/models/discriminators/snresnet.py
 class SNResNetProjectionDiscriminator64(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True):
         super(SNResNetProjectionDiscriminator64, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -766,8 +763,8 @@ class SNResNetProjectionDiscriminator64(nn.Module):
                             activation=activation, downsample=True)
         self.l6 = utils.spectral_norm(nn.Linear(num_features * 16, 1))
         if num_classes > 0:
-            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 16))
-            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if use_cy else None
+            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 16)) if sn_emb_l else nn.Embedding(num_classes, num_features * 16)
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
         self.ma_et = None
         self.ma_et_P = None
         self.ma_et_Q = None
@@ -810,7 +807,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
 
 
 class SNResNetProjectionDiscriminator32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -826,8 +823,8 @@ class SNResNetProjectionDiscriminator32(nn.Module):
                             activation=activation, downsample=True)
         self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
-            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
-            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if use_cy else None
+            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
         self.ma_et = None
         self.ma_et_P = None
         self.ma_et_Q = None

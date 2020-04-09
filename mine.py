@@ -59,6 +59,8 @@ parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--use_shared_T', action='store_true')
 parser.add_argument('--use_cy', action='store_true')
+parser.add_argument('--no_sn_emb_l', action='store_true')
+parser.add_argument('--no_sn_emb_c', action='store_true')
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
@@ -170,7 +172,8 @@ if opt.dataset == 'imagenet':
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
     if opt.use_shared_T:
         if opt.netD_model == 'proj32':
-            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout)
+            netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout,
+                                      sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c)
         elif opt.netD_model == 'basic':
             netD = _netDT_CIFAR10(ngpu, num_classes)
             netD.apply(weights_init)
@@ -202,10 +205,12 @@ else:
             netT = _netT_concat_CIFAR10(ngpu)
             netT.apply(weights_init)
         elif opt.netT_model == 'proj64':
-            netT = SNResNetProjectionDiscriminator64(opt.ntf, opt.num_classes)
+            netT = SNResNetProjectionDiscriminator64(opt.ntf, opt.num_classes,
+                                                     sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c)
             # netT._initialize()
         elif opt.netT_model == 'proj32':
-            netT = SNResNetProjectionDiscriminator32(opt.ntf, opt.num_classes)
+            netT = SNResNetProjectionDiscriminator32(opt.ntf, opt.num_classes,
+                                                     sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c)
             # netT._initialize()
         else:
             raise NotImplementedError
@@ -370,7 +375,7 @@ for epoch in range(opt.niter):
             if 'c' in opt.adaptive_grad:
                 loss_G_u += aux_errG
             grad_u = autograd.grad(loss_G_u, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
-            grad_m = autograd.grad(opt.lambda_mi * mi, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
+            grad_m = autograd.grad(opt.lambda_mi * mi_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_d = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_c = autograd.grad(aux_errG, netG.parameters(), create_graph=True, retain_graph=True, only_inputs=True)
             grad_u_flattened = torch.cat([g.view(-1) for g in grad_u])
