@@ -613,7 +613,8 @@ class _netDT_SNResProj32(nn.Module):
             # netT(x, y)
             cy = self.c_y(y) if self.use_cy else 0.0
             if self.softmax:
-                output = torch.log(torch.softmax(self.fc_t(h), dim=1)) + cy
+                logprob = torch.log(torch.softmax(self.fc_t(h), dim=1))
+                output = logprob[range(y.size(0)), y] + cy
             else:
                 output = self.l5(h)
                 output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
