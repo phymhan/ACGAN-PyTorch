@@ -320,7 +320,10 @@ for epoch in range(opt.niter):
         D_x = F.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
-        accuracy = compute_acc(aux_output, real_label)
+        if opt.loss_type == 'none':
+            accuracy = 1. / num_classes
+        else:
+            accuracy = compute_acc(aux_output, real_label)
 
         # get fake
         if opt.shuffle_label == 'shuffle':
