@@ -3,4 +3,5 @@ outputs*
 *.sw[po]
 datasets
 results*
+test*
 __pycache__

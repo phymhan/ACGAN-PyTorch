@@ -1,1 +1,0 @@
-mine.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 200 --outf test/cifar10 --use_shared_T --netD_model proj32 --loss_type mine --visualize_class_label 9 --adaptive_grad cd --adaptive --lambda_mi 0.1 --netT_model proj32 --use_cy --softmax_T --batchSize 2
