@@ -583,14 +583,16 @@ class _netDT_SNResProj32(nn.Module):
         init.xavier_uniform_(self.l5.weight.data)
         optional_l_y = getattr(self, 'l_y', None)
         if optional_l_y is not None:
+            init.xavier_uniform_(optional_l_y.weight.data)
+        optional_c_y = getattr(self, 'c_y', None)
+        if optional_c_y is not None:
             if self.init_zero:
-                optional_l_y.weight.data.fill_(0)
+                optional_c_y.weight.data.fill_(0)
             else:
-                init.xavier_uniform_(optional_l_y.weight.data)
+                init.xavier_uniform_(optional_c_y.weight.data)
 
     def forward(self, x, y=None):
-        h = x
-        h = self.block1(h)
+        h = self.block1(x)
         h = self.block2(h)
         h = self.block3(h)
         h = self.block4(h)
