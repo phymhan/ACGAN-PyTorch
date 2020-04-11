@@ -317,7 +317,7 @@ for epoch in range(opt.niter):
             aux_errD_real = aux_criterion(aux_output, real_label)
         errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
-        D_x = F.sigmoid(dis_output).data.mean()
+        D_x = torch.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
         if opt.loss_type == 'none':
@@ -357,7 +357,7 @@ for epoch in range(opt.niter):
             aux_errD_fake = aux_criterion(aux_output, fake_label)
         errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
         errD_fake.backward()
-        D_G_z1 = F.sigmoid(dis_output).data.mean()
+        D_G_z1 = torch.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
         optimizerD.step()
 
@@ -511,7 +511,7 @@ for epoch in range(opt.niter):
         else:
             errG.backward()
         optimizerG.step()
-        D_G_z2 = F.sigmoid(dis_output).data.mean()
+        D_G_z2 = torch.sigmoid(dis_output).data.mean()
 
         # compute the average loss
         avg_loss_G.update(errG.item(), batch_size)

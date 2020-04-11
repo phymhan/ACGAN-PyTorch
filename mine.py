@@ -62,6 +62,7 @@ parser.add_argument('--use_cy', action='store_true')
 parser.add_argument('--no_sn_emb_l', action='store_true')
 parser.add_argument('--no_sn_emb_c', action='store_true')
 parser.add_argument('--emb_init_zero', action='store_true')
+parser.add_argument('--softmax_T', action='store_true')
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
@@ -175,7 +176,7 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
         if opt.netD_model == 'proj32':
             netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout,
                                       sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c,
-                                      init_zero=opt.emb_init_zero)
+                                      init_zero=opt.emb_init_zero, softmax=opt.softmax_T)
         elif opt.netD_model == 'basic':
             netD = _netDT_CIFAR10(ngpu, num_classes)
             netD.apply(weights_init)
@@ -305,7 +306,7 @@ for epoch in range(opt.niter):
         aux_errD_real = aux_criterion(aux_output, aux_label)
         errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
-        D_x = F.sigmoid(dis_output).data.mean()
+        D_x = torch.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
         accuracy = compute_acc(aux_output, aux_label)
@@ -334,7 +335,7 @@ for epoch in range(opt.niter):
         aux_errD_fake = aux_criterion(aux_output, aux_label)
         errD_fake = dis_errD_fake + aux_errD_fake
         errD_fake.backward()
-        D_G_z1 = F.sigmoid(dis_output).data.mean()
+        D_G_z1 = torch.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
         optimizerD.step()
 
@@ -390,7 +391,7 @@ for epoch in range(opt.niter):
         else:
             errG.backward()
         optimizerG.step()
-        D_G_z2 = F.sigmoid(dis_output).data.mean()
+        D_G_z2 = torch.sigmoid(dis_output).data.mean()
 
         # compute the average loss
         avg_loss_G.update(errG.item(), batch_size)
