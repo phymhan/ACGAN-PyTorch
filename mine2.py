@@ -348,7 +348,7 @@ for epoch in range(opt.niter):
             dis_output, aux_output, tac_output = netD(fake.detach())
             tac_errD_fake = aux_criterion(tac_output, fake_label)
         else:
-            dis_output, aux_output = netD(input)
+            dis_output, aux_output = netD(fake.detach())
             tac_errD_fake = 0.
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         if opt.loss_type == 'none':
