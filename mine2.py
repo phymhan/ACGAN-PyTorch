@@ -62,6 +62,7 @@ parser.add_argument('--use_cy', action='store_true')
 parser.add_argument('--no_sn_emb_l', action='store_true')
 parser.add_argument('--no_sn_emb_c', action='store_true')
 parser.add_argument('--emb_init_zero', action='store_true')
+parser.add_argument('--softmax_T', action='store_true')
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | proj32]')
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
@@ -180,7 +181,7 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
             netD = _netDT2_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, ac=opt.loss_type != 'none',
                                        tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout,
                                        sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c,
-                                       init_zero=opt.emb_init_zero)
+                                       init_zero=opt.emb_init_zero, softmax=opt.softmax_T)
         else:
             raise NotImplementedError
     else:
