@@ -550,12 +550,13 @@ class _netDT_CIFAR10(nn.Module):
 
 class _netDT_SNResProj32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.,
-                 sn_emb_l=True, sn_emb_c=True):
+                 sn_emb_l=True, sn_emb_c=True, init_zero=False):
         super(_netDT_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.use_cy = use_cy
+        self.init_zero = init_zero
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -567,7 +568,8 @@ class _netDT_SNResProj32(nn.Module):
         self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
             self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
-            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
+            if use_cy:
+                self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
         self.ma_et = None
 
         # discriminator fc
@@ -581,7 +583,10 @@ class _netDT_SNResProj32(nn.Module):
         init.xavier_uniform_(self.l5.weight.data)
         optional_l_y = getattr(self, 'l_y', None)
         if optional_l_y is not None:
-            init.xavier_uniform_(optional_l_y.weight.data)
+            if self.init_zero:
+                optional_l_y.weight.data.fill_(0)
+            else:
+                init.xavier_uniform_(optional_l_y.weight.data)
 
     def forward(self, x, y=None):
         h = x
@@ -605,14 +610,16 @@ class _netDT_SNResProj32(nn.Module):
 
 
 class _netDT2_SNResProj32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, tac=False, dropout=0.,
-                 sn_emb_l=True, sn_emb_c=True):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, ac=False, tac=False, dropout=0.,
+                 sn_emb_l=True, sn_emb_c=True, init_zero=False):
         super(_netDT2_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.use_cy = use_cy
+        self.ac = ac
         self.tac = tac
+        self.init_zero = init_zero
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -625,16 +632,17 @@ class _netDT2_SNResProj32(nn.Module):
         self.l5_Q = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
             self.l_y_P = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
-            self.c_y_P = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
             self.l_y_Q = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
-            self.c_y_Q = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
+            if use_cy:
+                self.c_y_P = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
+                self.c_y_Q = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
         self.ma_et_P = None
         self.ma_et_Q = None
 
         # discriminator fc
         self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
         # aux-classifier fc
-        self.fc_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+        self.fc_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes)) if ac else None
         # twin aux-classifier fc
         self.tac_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes)) if tac else None
 
@@ -649,10 +657,21 @@ class _netDT2_SNResProj32(nn.Module):
         optional_l_y_Q = getattr(self, 'l_y_Q', None)
         if optional_l_y_Q is not None:
             init.xavier_uniform_(optional_l_y_Q.weight.data)
+        optional_c_y_P = getattr(self, 'c_y_P', None)
+        if optional_c_y_P is not None:
+            if self.init_zero:
+                optional_c_y_P.weight.data.fill_(0.)
+            else:
+                init.xavier_uniform_(optional_c_y_P.weight.data)
+        optional_c_y_Q = getattr(self, 'c_y_Q', None)
+        if optional_c_y_Q is not None:
+            if self.init_zero:
+                optional_c_y_Q.weight.data.fill_(0.)
+            else:
+                init.xavier_uniform_(optional_c_y_Q.weight.data)
 
     def forward(self, x, y=None, distribution='P'):
-        h = x
-        h = self.block1(h)
+        h = self.block1(x)
         h = self.block2(h)
         h = self.block3(h)
         h = self.block4(h)
@@ -674,7 +693,7 @@ class _netDT2_SNResProj32(nn.Module):
             return output.squeeze(1)
         else:
             realfake = self.fc_dis(h).squeeze(1)
-            classes = self.fc_aux(h)
+            classes = self.fc_aux(h) if self.ac else None
             if self.tac:
                 classes_twin = self.tac_aux(h)
                 return realfake, classes, classes_twin
@@ -725,8 +744,7 @@ class _netD_SNRes32(nn.Module):
         self.tac_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
 
     def forward(self, x):
-        h = x
-        h = self.block1(h)
+        h = self.block1(x)
         h = self.block2(h)
         h = self.block3(h)
         h = self.block4(h)
