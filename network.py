@@ -671,7 +671,7 @@ class _netDT2_SNResProj32(nn.Module):
                 output += torch.sum(self.l_y_Q(y) * h, dim=1, keepdim=True) + cy
             else:
                 raise RuntimeError
-            return output
+            return output.squeeze(1)
         else:
             realfake = self.fc_dis(h).squeeze(1)
             classes = self.fc_aux(h)

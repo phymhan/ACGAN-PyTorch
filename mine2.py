@@ -66,7 +66,7 @@ parser.add_argument('--netT_model', type=str, default='concat', help='[concat | 
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pearson | squared | jsd | gan]')
-parser.add_argument('--f_div_conj', action='store_true')
+# parser.add_argument('--f_div_conj', action='store_true')
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--lambda_mi', type=float, default=1.0)
@@ -413,32 +413,20 @@ for epoch in range(opt.niter):
         logr = logP - logQ
         r = torch.exp(logr)
 
-        if opt.f_div_conj:
-            if opt.f_div == 'kl':
-                fr = r
-            elif opt.f_div == 'revkl':
-                fr = logr - 1.0
-            elif opt.f_div == 'pearson':
-                fr = r.pow(2) - 1.0
-            elif opt.f_div == 'squared':
-                fr = r.sqrt() - 1.0
-            else:
-                raise NotImplementedError
+        if opt.f_div == 'kl':
+            fr = r * logr
+        elif opt.f_div == 'revkl':
+            fr = -logr
+        elif opt.f_div == 'pearson':
+            fr = (r - 1).pow(2)
+        elif opt.f_div == 'squared':
+            fr = (r.sqrt() - 1).pow(2)
+        elif opt.f_div == 'jsd':
+            fr = -(r + 1.0) * torch.log(0.5 * r + 0.5) + r * logr
+        elif opt.f_div == 'gan':
+            fr = r * logr - (r + 1.0) * torch.log(r + 1.0)
         else:
-            if opt.f_div == 'kl':
-                fr = r * logr
-            elif opt.f_div == 'revkl':
-                fr = -logr
-            elif opt.f_div == 'pearson':
-                fr = (r - 1).pow(2)
-            elif opt.f_div == 'squared':
-                fr = (r.sqrt() - 1).pow(2)
-            elif opt.f_div == 'jsd':
-                fr = -(r + 1.0) * torch.log(0.5 * r + 0.5) + r * logr
-            elif opt.f_div == 'gan':
-                fr = r * logr - (r + 1.0) * torch.log(r + 1.0)
-            else:
-                raise NotImplementedError
+            raise NotImplementedError
         fr = fr.mean()
 
         errG = dis_errG + aux_errG - opt.lambda_tac * tac_errG + opt.lambda_mi * miQ_errG + opt.lambda_r * fr
@@ -511,7 +499,7 @@ for epoch in range(opt.niter):
                 grad_r_ratio = torch.min(grad_u_norm, grad_r_norm) / grad_r_norm
                 grad_m_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
                 for p, g_d, g_c, g_m, g_r in zip(netG.parameters(), grad_d, grad_c, grad_m, grad_r):
-                    p.grad = g_d + g_c + g_r * grad_m_ratio + g_r * grad_r_ratio
+                    p.grad = g_d + g_c + g_m * grad_m_ratio + g_r * grad_r_ratio
             else:
                 raise NotImplementedError
         else:

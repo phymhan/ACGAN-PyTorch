@@ -382,9 +382,9 @@ for epoch in range(opt.niter):
             grad_m_flattened = torch.cat([g.view(-1) for g in grad_m])
             grad_u_norm = grad_u_flattened.pow(2).sum().sqrt()
             grad_m_norm = grad_m_flattened.pow(2).sum().sqrt()
-            grad_r_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
+            grad_m_ratio = torch.min(grad_u_norm, grad_m_norm) / grad_m_norm
             for p, g_d, g_c, g_m in zip(netG.parameters(), grad_d, grad_c, grad_m):
-                p.grad = g_d + g_c + g_m * grad_r_ratio
+                p.grad = g_d + g_c + g_m * grad_m_ratio
         else:
             errG.backward()
         optimizerG.step()
