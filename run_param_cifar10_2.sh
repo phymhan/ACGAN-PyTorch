@@ -5,9 +5,9 @@
 # mine, mine2
 
 
-CUDA_VISIBLE_DEVICES=3 python mine2.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 100 --outf results_new/cifar10/mine2_ls_cs_noa0.1 --use_shared_T --netD_model proj32 --visualize_class_label 9 --netT_model proj32 --use_cy --f_div revkl --loss_type none --lambda_r 0.1
+#CUDA_VISIBLE_DEVICES=3 python mine2.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 100 --outf results_new/cifar10/mine2_ls_cs_noa0.1 --use_shared_T --netD_model proj32 --visualize_class_label 9 --netT_model proj32 --use_cy --f_div revkl --loss_type none --lambda_r 0.1
 
-CUDA_VISIBLE_DEVICES=3 python mine2.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 100 --outf results_new/cifar10/mine2_ls_cs_noa0.5 --use_shared_T --netD_model proj32 --visualize_class_label 9 --netT_model proj32 --use_cy --f_div revkl --loss_type none --lambda_r 0.5
+#CUDA_VISIBLE_DEVICES=3 python mine2.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 100 --outf results_new/cifar10/mine2_ls_cs_noa0.5 --use_shared_T --netD_model proj32 --visualize_class_label 9 --netT_model proj32 --use_cy --f_div revkl --loss_type none --lambda_r 0.5
 
 CUDA_VISIBLE_DEVICES=3 python mine2.py --dataset cifar10 --dataroot datasets/cifar10 --cuda --batchSize 256 --niter 100 --outf results_new/cifar10/mine2_ls_cs_noa1.0 --use_shared_T --netD_model proj32 --visualize_class_label 9 --netT_model proj32 --use_cy --f_div revkl --loss_type none --lambda_r 1.0
 
