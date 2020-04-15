@@ -72,6 +72,7 @@ parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pe
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--lambda_mi', type=float, default=1.0)
+parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -374,7 +375,7 @@ for epoch in range(opt.niter):
                 netTP.ma_et_P = et.detach().item()
             netTP.ma_et_P += opt.ma_rate * (et.detach().item() - netTP.ma_et_P)
             mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et) * et.detach() / netTP.ma_et_P
-            loss_mine = -mi_P * opt.lambda_mi
+            loss_mine = -mi_P * opt.lambda_mi if opt.weighted_mine_loss else -mi_P
             optimizerTP.zero_grad()
             loss_mine.backward()
             optimizerTP.step()
@@ -388,7 +389,7 @@ for epoch in range(opt.niter):
                 netTQ.ma_et_Q = et.detach().item()
             netTQ.ma_et_Q += opt.ma_rate * (et.detach().item() - netTQ.ma_et_Q)
             mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et) * et.detach() / netTQ.ma_et_Q
-            loss_mine = -mi_Q * opt.lambda_mi
+            loss_mine = -mi_Q * opt.lambda_mi if opt.weighted_mine_loss else -mi_Q
             optimizerTQ.zero_grad()
             loss_mine.backward()
             optimizerTQ.step()

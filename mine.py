@@ -68,6 +68,7 @@ parser.add_argument('--netT_model', type=str, default='concat', help='[concat | 
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
+parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -353,7 +354,7 @@ for epoch in range(opt.niter):
                 netT.ma_et = et.detach().item()
             netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
             mi = torch.mean(netT(fake.detach(), y)) - torch.log(et) * et.detach() / netT.ma_et
-            loss_mine = -mi * opt.lambda_mi
+            loss_mine = -mi * opt.lambda_mi if opt.weighted_mine_loss else -mi
             optimizerT.zero_grad()
             loss_mine.backward()
             optimizerT.step()
