@@ -374,7 +374,7 @@ for epoch in range(opt.niter):
                 netTP.ma_et_P = et.detach().item()
             netTP.ma_et_P += opt.ma_rate * (et.detach().item() - netTP.ma_et_P)
             mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et) * et.detach() / netTP.ma_et_P
-            loss_mine = -mi_P
+            loss_mine = -mi_P * opt.lambda_mi
             optimizerTP.zero_grad()
             loss_mine.backward()
             optimizerTP.step()
@@ -388,7 +388,7 @@ for epoch in range(opt.niter):
                 netTQ.ma_et_Q = et.detach().item()
             netTQ.ma_et_Q += opt.ma_rate * (et.detach().item() - netTQ.ma_et_Q)
             mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et) * et.detach() / netTQ.ma_et_Q
-            loss_mine = -mi_Q
+            loss_mine = -mi_Q * opt.lambda_mi
             optimizerTQ.zero_grad()
             loss_mine.backward()
             optimizerTQ.step()

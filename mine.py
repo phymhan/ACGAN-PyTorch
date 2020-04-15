@@ -353,7 +353,7 @@ for epoch in range(opt.niter):
                 netT.ma_et = et.detach().item()
             netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
             mi = torch.mean(netT(fake.detach(), y)) - torch.log(et) * et.detach() / netT.ma_et
-            loss_mine = -mi
+            loss_mine = -mi * opt.lambda_mi
             optimizerT.zero_grad()
             loss_mine.backward()
             optimizerT.step()
