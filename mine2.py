@@ -374,7 +374,7 @@ for epoch in range(opt.niter):
             if netTP.ma_et_P is None:
                 netTP.ma_et_P = et.detach().item()
             netTP.ma_et_P += opt.ma_rate * (et.detach().item() - netTP.ma_et_P)
-            mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et) * et.detach() / netTP.ma_et_P
+            mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et+1e-8) * et.detach() / netTP.ma_et_P
             loss_mine = -mi_P * opt.lambda_mi if opt.weighted_mine_loss else -mi_P
             optimizerTP.zero_grad()
             loss_mine.backward()
@@ -388,7 +388,7 @@ for epoch in range(opt.niter):
             if netTQ.ma_et_Q is None:
                 netTQ.ma_et_Q = et.detach().item()
             netTQ.ma_et_Q += opt.ma_rate * (et.detach().item() - netTQ.ma_et_Q)
-            mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et) * et.detach() / netTQ.ma_et_Q
+            mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et+1e-8) * et.detach() / netTQ.ma_et_Q
             loss_mine = -mi_Q * opt.lambda_mi if opt.weighted_mine_loss else -mi_Q
             optimizerTQ.zero_grad()
             loss_mine.backward()
@@ -412,7 +412,7 @@ for epoch in range(opt.niter):
             aux_errG = aux_criterion(aux_output, fake_label)
         if opt.loss_type == 'mine':
             y_bar = y[torch.randperm(batch_size), ...]
-            miQ_errG = torch.mean(netTQ(fake, y, 'Q')) - torch.log(torch.mean(torch.exp(netTQ(fake, y_bar, 'Q'))))
+            miQ_errG = torch.mean(netTQ(fake, y, 'Q')) - torch.log(torch.mean(torch.exp(netTQ(fake, y_bar, 'Q')))+1e-8)
         else:
             miQ_errG = 0.
 
