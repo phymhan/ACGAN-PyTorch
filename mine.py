@@ -353,7 +353,7 @@ for epoch in range(opt.niter):
             if netT.ma_et is None:
                 netT.ma_et = et.detach().item()
             netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
-            mi = torch.mean(netT(fake.detach(), y)) - torch.log(et) * et.detach() / netT.ma_et
+            mi = torch.mean(netT(fake.detach(), y)) - torch.log(et+1e-8) * et.detach() / netT.ma_et
             loss_mine = -mi * opt.lambda_mi if opt.weighted_mine_loss else -mi
             optimizerT.zero_grad()
             loss_mine.backward()
@@ -368,7 +368,7 @@ for epoch in range(opt.niter):
         dis_errG = dis_criterion(dis_output, dis_label)
         aux_errG = aux_criterion(aux_output, aux_label)
         y_bar = y[torch.randperm(batch_size), ...]
-        mi_errG = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar))))
+        mi_errG = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar)))+1e-8)
         errG = dis_errG + aux_errG + opt.lambda_mi * mi_errG
 
         # adaptive
