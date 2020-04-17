@@ -24,6 +24,7 @@ from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
 from inception import prepare_inception_metrics, prepare_data_statistics
 import torch.nn.functional as F
+import functools
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -74,6 +75,7 @@ parser.add_argument('--lambda_mi', type=float, default=1.0)
 parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 parser.add_argument('--eps', type=float, default=0., help='eps added in log')
 parser.add_argument('--adversarial_T', action='store_true')
+parser.add_argument('--adversarial_T_hinge', action='store_true')
 parser.add_argument('--lambda_T', type=float, default=0.01)
 parser.add_argument('--lambda_T_decay', type=float, default=0)
 
@@ -294,6 +296,7 @@ losses_F = []
 losses_IS_mean = []
 losses_IS_std = []
 lambda_T = opt.lambda_T
+hinge = (lambda x: F.relu(1. + x)) if opt.adversarial_T_hinge else (lambda x: x)
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
@@ -410,15 +413,18 @@ for epoch in range(opt.niter):
             # minimize TP(fake) - TQ(real)
             if opt.use_shared_T:
                 optimizerD.zero_grad()
-                loss_adv_T = (netTP.log_prob(fake.detach(), fake_label, 'P') - netTQ.log_prob(input, real_label, 'Q')).mean()
-                (loss_adv_T * lambda_T).backward()
+                loss_adv_T = torch.mean(hinge(netTP.log_prob(fake.detach(), fake_label, 'P')) -
+                                        hinge(netTQ.log_prob(input, real_label, 'Q'))) * lambda_T
+                loss_adv_T.backward()
                 optimizerD.step()
             else:
                 optimizerTP.zero_grad()
-                (( netTP.log_prob(fake.detach(), fake_label, 'P')).mean() * lambda_T).backward()
+                loss_adv_TP = torch.mean(hinge(netTP.log_prob(fake.detach(), fake_label, 'P'))) * lambda_T
+                loss_adv_TP.backeard()
                 optimizerTP.step()
                 optimizerTQ.zero_grad()
-                ((-netTQ.log_prob(input, real_label, 'Q')).mean() * lambda_T).backward()
+                loss_adv_TQ = torch.mean(hinge(-netTQ.log_prob(input, real_label, 'Q'))) * lambda_T
+                loss_adv_TQ.backward()
                 optimizerTQ.step()
 
         ############################
