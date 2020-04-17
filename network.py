@@ -628,7 +628,7 @@ class _netDT_SNResProj32(nn.Module):
 
 class _netDT2_SNResProj32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, ac=False, tac=False, dropout=0.,
-                 sn_emb_l=True, sn_emb_c=True, init_zero=False, softmax=False):
+                 sn_emb_l=True, sn_emb_c=True, init_zero=False, softmax=False, projection=False):
         super(_netDT2_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -638,6 +638,7 @@ class _netDT2_SNResProj32(nn.Module):
         self.tac = tac
         self.init_zero = init_zero
         self.softmax = softmax
+        self.projection = projection
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -647,6 +648,8 @@ class _netDT2_SNResProj32(nn.Module):
         self.block4 = Block(num_features * 4, num_features * 8,
                             activation=activation, downsample=True, dropout=dropout)
         if num_classes > 0:
+            if self.projection:
+                self.embed = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
             if softmax:
                 self.fc_t_P = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
                 self.fc_t_Q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
@@ -671,6 +674,9 @@ class _netDT2_SNResProj32(nn.Module):
         self._initialize()
 
     def _initialize(self):
+        optional_embed = getattr(self, 'embed', None)
+        if optional_embed is not None:
+            init.xavier_uniform_(optional_embed.weight.data)
         optional_fc_t_P = getattr(self, 'fc_t_P', None)
         if optional_fc_t_P is not None:
             init.xavier_uniform_(optional_fc_t_P.weight.data)
@@ -702,7 +708,7 @@ class _netDT2_SNResProj32(nn.Module):
             else:
                 init.xavier_uniform_(optional_c_y_Q.weight.data)
 
-    def forward(self, x, y=None, distribution='P'):
+    def forward(self, x, y=None, distribution=''):
         h = self.block1(x)
         h = self.block2(h)
         h = self.block3(h)
@@ -711,7 +717,7 @@ class _netDT2_SNResProj32(nn.Module):
         # Global pooling
         h = torch.sum(h, dim=(2, 3))
 
-        if y is not None:
+        if (y is not None) and distribution:
             # netT(x, y)
             if distribution == 'P':
                 cy = self.c_y_P(y) if self.use_cy else 0.0
@@ -732,6 +738,11 @@ class _netDT2_SNResProj32(nn.Module):
             else:
                 raise RuntimeError
             return output.squeeze(1)
+        elif y is not None:
+            # netD(x, y)
+            realfake = self.fc_dis(h)
+            realfake += torch.sum(self.embed(y) * h, dim=1, keepdim=True)
+            return realfake.squeeze(1), None
         else:
             # netD(x)
             realfake = self.fc_dis(h).squeeze(1)

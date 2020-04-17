@@ -47,7 +47,7 @@ parser.add_argument('--netT', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
-parser.add_argument('--loss_type', type=str, default='none', help='[ac | tac | mine | none]')
+parser.add_argument('--loss_type', type=str, default='none', help='[ac | tac | mine | none | proj]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
 # parser.add_argument('--lambda_r_grad', type=float, default=1.)
@@ -182,7 +182,8 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
             netD = _netDT2_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, ac=opt.loss_type != 'none',
                                        tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout,
                                        sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c,
-                                       init_zero=opt.emb_init_zero, softmax=opt.softmax_T)
+                                       init_zero=opt.emb_init_zero, softmax=opt.softmax_T,
+                                       projection=opt.loss_type == 'proj')
         else:
             raise NotImplementedError
     else:
@@ -309,11 +310,13 @@ for epoch in range(opt.niter):
             real_label.resize_(batch_size).copy_(label)
         if opt.loss_type == 'tac':
             dis_output, aux_output, _ = netD(input)
+        elif opt.loss_type == 'proj':
+            dis_output, aux_output = netD(input, real_label)
         else:
             dis_output, aux_output = netD(input)
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'none':
+        if opt.loss_type == 'none' or opt.loss_type == 'proj':
             aux_errD_real = 0.
         else:
             aux_errD_real = aux_criterion(aux_output, real_label)
@@ -322,7 +325,7 @@ for epoch in range(opt.niter):
         D_x = torch.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
-        if opt.loss_type == 'none':
+        if opt.loss_type == 'none' or opt.loss_type == 'proj':
             accuracy = 1. / num_classes
         else:
             accuracy = compute_acc(aux_output, real_label)
@@ -349,11 +352,14 @@ for epoch in range(opt.niter):
         if opt.loss_type == 'tac':
             dis_output, aux_output, tac_output = netD(fake.detach())
             tac_errD_fake = aux_criterion(tac_output, fake_label)
+        elif opt.loss_type == 'proj':
+            dis_output, aux_output = netD(fake.detach(), fake_label)
+            tac_errD_fake = 0.
         else:
             dis_output, aux_output = netD(fake.detach())
             tac_errD_fake = 0.
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'none':
+        if opt.loss_type == 'none' or opt.loss_type == 'proj':
             aux_errD_fake = 0.
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
@@ -402,11 +408,14 @@ for epoch in range(opt.niter):
         if opt.loss_type == 'tac':
             dis_output, aux_output, tac_output = netD(fake)
             tac_errG = aux_criterion(tac_output, fake_label)
+        elif opt.loss_type == 'proj':
+            dis_output, aux_output = netD(fake, fake_label)
+            tac_errG = 0.
         else:
             dis_output, aux_output = netD(fake)
             tac_errG = 0.
         dis_errG = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'none':
+        if opt.loss_type == 'none' or opt.loss_type == 'proj':
             aux_errG = 0.
         else:
             aux_errG = aux_criterion(aux_output, fake_label)
