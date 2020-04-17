@@ -68,14 +68,18 @@ parser.add_argument('--netT_model', type=str, default='concat', help='[concat | 
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--f_div', type=str, default='revkl', help='[kl | revkl | pearson | squared | jsd | gan]')
-# parser.add_argument('--f_div_conj', action='store_true')
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--lambda_mi', type=float, default=1.0)
 parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
+parser.add_argument('--eps', type=float, default=0., help='eps added in log')
+parser.add_argument('--adversarial_T', action='store_true')
+parser.add_argument('--lambda_T_decay', type=float, default=0)
 
 opt = parser.parse_args()
 print_options(parser, opt)
+
+EPSILON = opt.eps
 
 # specify the gpu id if using only 1 gpu
 # if opt.ngpu == 1:
@@ -288,6 +292,7 @@ losses_A = []
 losses_F = []
 losses_IS_mean = []
 losses_IS_std = []
+lambda_T = 1.0
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
@@ -380,7 +385,7 @@ for epoch in range(opt.niter):
             if netTP.ma_et_P is None:
                 netTP.ma_et_P = et.detach().item()
             netTP.ma_et_P += opt.ma_rate * (et.detach().item() - netTP.ma_et_P)
-            mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et+1e-8) * et.detach() / netTP.ma_et_P
+            mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et+EPSILON) * et.detach() / netTP.ma_et_P
             loss_mine = -mi_P * opt.lambda_mi if opt.weighted_mine_loss else -mi_P
             optimizerTP.zero_grad()
             loss_mine.backward()
@@ -394,11 +399,19 @@ for epoch in range(opt.niter):
             if netTQ.ma_et_Q is None:
                 netTQ.ma_et_Q = et.detach().item()
             netTQ.ma_et_Q += opt.ma_rate * (et.detach().item() - netTQ.ma_et_Q)
-            mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et+1e-8) * et.detach() / netTQ.ma_et_Q
+            mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et+EPSILON) * et.detach() / netTQ.ma_et_Q
             loss_mine = -mi_Q * opt.lambda_mi if opt.weighted_mine_loss else -mi_Q
             optimizerTQ.zero_grad()
             loss_mine.backward()
             optimizerTQ.step()
+
+        if opt.adversarial_T:
+            assert opt.use_shared_T
+            # minimize TP(fake) - TQ(real)
+            loss_adv_T = netTP.log_prob(fake.detach(), fake_label, 'P') - netTQ.log_prob(input, real_label, 'Q')
+            optimizerD.zero_grad()
+            (loss_adv_T * lambda_T).backward()
+            optimizerD.step()
 
         ############################
         # (3) Update G network: maximize log(D(G(z)))
@@ -421,7 +434,7 @@ for epoch in range(opt.niter):
             aux_errG = aux_criterion(aux_output, fake_label)
         if opt.loss_type == 'mine':
             y_bar = y[torch.randperm(batch_size), ...]
-            miQ_errG = torch.mean(netTQ(fake, y, 'Q')) - torch.log(torch.mean(torch.exp(netTQ(fake, y_bar, 'Q')))+1e-8)
+            miQ_errG = torch.mean(netTQ(fake, y, 'Q')) - torch.log(torch.mean(torch.exp(netTQ(fake, y_bar, 'Q')))+EPSILON)
         else:
             miQ_errG = 0.
 
@@ -544,6 +557,10 @@ for epoch in range(opt.niter):
                 fake.data,
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
+
+    # update lambda_T
+    if opt.lambda_T_decay > 0:
+        lambda_T *= opt.lambda_T_decay
 
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
