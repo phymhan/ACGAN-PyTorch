@@ -74,6 +74,7 @@ parser.add_argument('--lambda_mi', type=float, default=1.0)
 parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 parser.add_argument('--eps', type=float, default=0., help='eps added in log')
 parser.add_argument('--adversarial_T', action='store_true')
+parser.add_argument('--lambda_T', type=float, default=0.01)
 parser.add_argument('--lambda_T_decay', type=float, default=0)
 
 opt = parser.parse_args()
@@ -292,7 +293,7 @@ losses_A = []
 losses_F = []
 losses_IS_mean = []
 losses_IS_std = []
-lambda_T = 1.0
+lambda_T = opt.lambda_T
 for epoch in range(opt.niter):
     avg_loss_D = AverageMeter()
     avg_loss_G = AverageMeter()
@@ -380,6 +381,7 @@ for epoch in range(opt.niter):
         # train with real
         y = real_label
         for _ in range(opt.n_update_mine):
+            optimizerTP.zero_grad()
             y_bar = y[torch.randperm(batch_size), ...]
             et = torch.mean(torch.exp(netTP(input, y_bar, 'P')))
             if netTP.ma_et_P is None:
@@ -387,13 +389,13 @@ for epoch in range(opt.niter):
             netTP.ma_et_P += opt.ma_rate * (et.detach().item() - netTP.ma_et_P)
             mi_P = torch.mean(netTP(input, y, 'P')) - torch.log(et+EPSILON) * et.detach() / netTP.ma_et_P
             loss_mine = -mi_P * opt.lambda_mi if opt.weighted_mine_loss else -mi_P
-            optimizerTP.zero_grad()
             loss_mine.backward()
             optimizerTP.step()
 
         # train with fake
         y = fake_label
         for _ in range(opt.n_update_mine):
+            optimizerTQ.zero_grad()
             y_bar = y[torch.randperm(batch_size), ...]
             et = torch.mean(torch.exp(netTQ(fake.detach(), y_bar, 'Q')))
             if netTQ.ma_et_Q is None:
@@ -401,17 +403,23 @@ for epoch in range(opt.niter):
             netTQ.ma_et_Q += opt.ma_rate * (et.detach().item() - netTQ.ma_et_Q)
             mi_Q = torch.mean(netTQ(fake.detach(), y, 'Q')) - torch.log(et+EPSILON) * et.detach() / netTQ.ma_et_Q
             loss_mine = -mi_Q * opt.lambda_mi if opt.weighted_mine_loss else -mi_Q
-            optimizerTQ.zero_grad()
             loss_mine.backward()
             optimizerTQ.step()
 
         if opt.adversarial_T:
-            assert opt.use_shared_T
             # minimize TP(fake) - TQ(real)
-            loss_adv_T = (netTP.log_prob(fake.detach(), fake_label, 'P') - netTQ.log_prob(input, real_label, 'Q')).mean()
-            optimizerD.zero_grad()
-            (loss_adv_T * lambda_T).backward()
-            optimizerD.step()
+            if opt.use_shared_T:
+                optimizerD.zero_grad()
+                loss_adv_T = (netTP.log_prob(fake.detach(), fake_label, 'P') - netTQ.log_prob(input, real_label, 'Q')).mean()
+                (loss_adv_T * lambda_T).backward()
+                optimizerD.step()
+            else:
+                optimizerTP.zero_grad()
+                (( netTP.log_prob(fake.detach(), fake_label, 'P')).mean() * lambda_T).backward()
+                optimizerTP.step()
+                optimizerTQ.zero_grad()
+                ((-netTQ.log_prob(input, real_label, 'Q')).mean() * lambda_T).backward()
+                optimizerTQ.step()
 
         ############################
         # (3) Update G network: maximize log(D(G(z)))
