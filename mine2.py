@@ -413,17 +413,21 @@ for epoch in range(opt.niter):
             # minimize TP(fake) - TQ(real)
             if opt.use_shared_T:
                 optimizerD.zero_grad()
-                loss_adv_T = torch.mean(hinge(netTP.log_prob(fake.detach(), fake_label, 'P')) -
-                                        hinge(netTQ.log_prob(input, real_label, 'Q'))) * lambda_T
+                loss_adv_T = torch.mean(hinge(netTP.log_prob(fake.detach(), fake_label, 'P') -
+                                              netTQ.log_prob(fake.detach(), fake_label, 'Q').detach()) +
+                                        hinge(netTQ.log_prob(input, real_label, 'Q') -
+                                              netTP.log_prob(input, real_label, 'P').detach())) * lambda_T
                 loss_adv_T.backward()
                 optimizerD.step()
             else:
                 optimizerTP.zero_grad()
-                loss_adv_TP = torch.mean(hinge(netTP.log_prob(fake.detach(), fake_label, 'P'))) * lambda_T
+                loss_adv_TP = torch.mean(hinge(netTP.log_prob(fake.detach(), fake_label, 'P') -
+                    netTQ.log_prob(fake.detach(), fake_label, 'Q').detach())) * lambda_T
                 loss_adv_TP.backeard()
                 optimizerTP.step()
                 optimizerTQ.zero_grad()
-                loss_adv_TQ = torch.mean(hinge(-netTQ.log_prob(input, real_label, 'Q'))) * lambda_T
+                loss_adv_TQ = torch.mean(hinge(netTQ.log_prob(input, real_label, 'Q') -
+                    netTP.log_prob(input, real_label, 'P').detach())) * lambda_T
                 loss_adv_TQ.backward()
                 optimizerTQ.step()
 
