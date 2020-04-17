@@ -450,7 +450,7 @@ for epoch in range(opt.niter):
 
         # adaptive
         if opt.adaptive:
-            if opt.loss_type == 'none':
+            if opt.loss_type == 'none' or opt.loss_type == 'proj':
                 grad_u = autograd.grad(dis_errG, netG.parameters(), create_graph=True, retain_graph=True,
                                        only_inputs=True)
                 grad_r = autograd.grad(opt.lambda_r * fr, netG.parameters(), create_graph=True, retain_graph=True,
