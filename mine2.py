@@ -408,7 +408,7 @@ for epoch in range(opt.niter):
         if opt.adversarial_T:
             assert opt.use_shared_T
             # minimize TP(fake) - TQ(real)
-            loss_adv_T = netTP.log_prob(fake.detach(), fake_label, 'P') - netTQ.log_prob(input, real_label, 'Q')
+            loss_adv_T = (netTP.log_prob(fake.detach(), fake_label, 'P') - netTQ.log_prob(input, real_label, 'Q')).mean()
             optimizerD.zero_grad()
             (loss_adv_T * lambda_T).backward()
             optimizerD.step()
