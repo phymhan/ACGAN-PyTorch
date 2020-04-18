@@ -116,3 +116,30 @@ def set_onehot(noise, label, nclass):
     noise_numpy[np.arange(bs), :nclass] = onehot[np.arange(bs)]
     noise.data.copy_(torch.from_numpy(noise_numpy).view(bs, nz, 1, 1))
     return noise
+
+
+# borrowed from BigGAN
+class Distribution(torch.Tensor):
+    # Init the params of the distribution
+    def init_distribution(self, dist_type, **kwargs):
+        self.dist_type = dist_type
+        self.dist_kwargs = kwargs
+        if self.dist_type == 'normal':
+            self.mean, self.var = kwargs['mean'], kwargs['var']
+        elif self.dist_type == 'categorical':
+            self.num_categories = kwargs['num_categories']
+
+    def sample_(self):
+        if self.dist_type == 'normal':
+            self.normal_(self.mean, self.var)
+        elif self.dist_type == 'categorical':
+            self.random_(0, self.num_categories)
+            # return self.variable
+
+    # Silly hack: overwrite the to() method to wrap the new object
+    # in a distribution as well
+    def to(self, *args, **kwargs):
+        new_obj = Distribution(self)
+        new_obj.init_distribution(self.dist_type, **self.dist_kwargs)
+        new_obj.data = super().to(*args, **kwargs)
+        return new_obj
