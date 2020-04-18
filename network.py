@@ -279,7 +279,7 @@ class _netG_CIFAR10(nn.Module):
         )
 
     def forward(self, z, y):
-        y_ = torch.zeros(y.size(0), self.ny).scatter_(1, y.view(-1, 1), 1).cuda() if self.one_hot else self.embed(y)
+        y_ = torch.zeros(y.size(0), self.ny).cuda().scatter_(1, y.view(-1, 1), 1) if self.one_hot else self.embed(y)
         fc1 = self.fc1(torch.cat([z, y_], dim=1))
         fc1 = fc1.view(-1, 384, 1, 1)
         tconv2 = self.tconv2(fc1)
