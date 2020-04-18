@@ -32,6 +32,7 @@ parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=128, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ny', type=int, default=0, help='size of the latent embedding vector for y')
+parser.add_argument('--use_onehot_embed', action='store_true', help='use onehot embedding in G?')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
@@ -292,12 +293,13 @@ for epoch in range(opt.niter):
         #     label = np.random.randint(0, num_classes, batch_size)
         # elif opt.shuffle_label == 'same':
         #     label = label.cpu().numpy()
-        if opt.shuffle_label == 'shuffle':
-            fake_label = label[torch.randperm(batch_size), ...]
-        elif opt.shuffle_label == 'uniform':
-            fake_label.random_(0, num_classes)
-        elif opt.shuffle_label == 'same':
-            fake_label = label
+        # if opt.shuffle_label == 'shuffle':
+        #     fake_label = label[torch.randperm(batch_size), ...]
+        # elif opt.shuffle_label == 'uniform':
+        #     fake_label.random_(0, num_classes)
+        # elif opt.shuffle_label == 'same':
+        #     fake_label = label
+        fake_label.resize_(batch_size).random_(0, num_classes)
         # noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
         # noise_ = np.random.normal(0, 1, (batch_size, nz))
         # class_onehot = np.zeros((batch_size, num_classes))
@@ -306,12 +308,12 @@ for epoch in range(opt.niter):
         # noise_ = (torch.from_numpy(noise_))
         # noise.copy_(noise_.view(batch_size, nz, 1, 1))
         # aux_label.resize_(batch_size).copy_(torch.from_numpy(label))
-        noise.normal_(0, 1)
+        noise.resize_(batch_size, nz).normal_(0, 1)
         # aux_label = fake_label
         fake = netG(noise, fake_label)
 
         # train with fake
-        dis_label.fill_(fake_label_const)
+        dis_label.resize_(batch_size).fill_(fake_label_const)
         if opt.loss_type == 'cgan':
             dis_output = netD(fake.detach(), fake_label)
             tac_errD_fake = 0.

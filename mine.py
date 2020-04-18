@@ -33,6 +33,8 @@ parser.add_argument('--workers', type=int, help='number of data loading workers'
 parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=128, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=110, help='size of the latent z vector')
+parser.add_argument('--ny', type=int, default=0, help='size of the latent embedding vector for y')
+parser.add_argument('--use_onehot_embed', action='store_true', help='use onehot embedding in G?')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--ntf', type=int, default=64)
@@ -102,24 +104,15 @@ writer = SummaryWriter(log_dir=opt.outf)
 if opt.dataset == 'imagenet':
     # folder dataset
     opt.imageSize = 128
-    # dataset = ImageFolder(
-    #     root=opt.dataroot,
-    #     transform=transforms.Compose([
-    #         transforms.Scale(opt.imageSize),
-    #         transforms.CenterCrop(opt.imageSize),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    #     ]),
-    #     classes_idx=(10, 20)
-    # )
-    dataset = dset.ImageNet(
-        root=opt.dataroot, download=opt.download_dset,
+    dataset = ImageFolder(
+        root=opt.dataroot,
         transform=transforms.Compose([
             transforms.Scale(opt.imageSize),
             transforms.CenterCrop(opt.imageSize),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ]),
+        classes_idx=(10, 20)
     )
 elif opt.dataset == 'cifar10':
     opt.imageSize = 32
@@ -160,6 +153,7 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
 # some hyper parameters
 ngpu = int(opt.ngpu)
 nz = int(opt.nz)
+ny = int(opt.num_classes) if opt.ny == 0 else int(opt.ny)  # embedding dim same as onehot embedding by default
 ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 num_classes = int(opt.num_classes)
@@ -169,9 +163,9 @@ nc = 3
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
 elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
-    netG = _netG_CIFAR10(ngpu, nz)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
 elif opt.dataset == 'mnist':
-    netG = _netG_CIFAR10(ngpu, nz)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
 else:
     raise NotImplementedError
 netG.apply(weights_init)
