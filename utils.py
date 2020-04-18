@@ -54,7 +54,7 @@ class AverageMeter(object):
 class ImageSampler:
     def __init__(self, G, opt):
         self.G = G
-        self.noise = torch.FloatTensor(opt.batchSize, opt.nz, 1, 1)
+        self.noise = torch.FloatTensor(opt.batchSize, opt.nz)
         self.label = torch.LongTensor(opt.batchSize)
         self.batchSize = opt.batchSize
         self.opt = opt
@@ -63,16 +63,19 @@ class ImageSampler:
         return self
 
     def __next__(self):
+        # self.noise.normal_(0, 1)
+        # label = np.random.randint(0, self.opt.num_classes, self.batchSize)
+        # noise_ = np.random.normal(0, 1, (self.batchSize, self.opt.nz))
+        # class_onehot = np.zeros((self.batchSize, self.opt.num_classes))
+        # class_onehot[np.arange(self.batchSize), label] = 1
+        # noise_[np.arange(self.batchSize), :self.opt.num_classes] = class_onehot[np.arange(self.batchSize)]
+        # noise_ = (torch.from_numpy(noise_))
+        # self.noise.copy_(noise_.view(self.batchSize, self.opt.nz, 1, 1))
+        # self.label.resize_(self.batchSize).copy_(torch.from_numpy(label))
+        # fake = self.G(self.noise.cuda())
         self.noise.normal_(0, 1)
-        label = np.random.randint(0, self.opt.num_classes, self.batchSize)
-        noise_ = np.random.normal(0, 1, (self.batchSize, self.opt.nz))
-        class_onehot = np.zeros((self.batchSize, self.opt.num_classes))
-        class_onehot[np.arange(self.batchSize), label] = 1
-        noise_[np.arange(self.batchSize), :self.opt.num_classes] = class_onehot[np.arange(self.batchSize)]
-        noise_ = (torch.from_numpy(noise_))
-        self.noise.copy_(noise_.view(self.batchSize, self.opt.nz, 1, 1))
-        self.label.resize_(self.batchSize).copy_(torch.from_numpy(label))
-        fake = self.G(self.noise.cuda())
+        self.label.random_(0, self.opt.num_classes)
+        fake = self.G(self.noise.cuda(), self.label.cuda())
         return fake, self.label
 
 
