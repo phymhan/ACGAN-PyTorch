@@ -114,6 +114,6 @@ def set_onehot(noise, label, nclass):
     onehot = np.zeros((bs, nclass))
     onehot[np.arange(bs), label] = 1
     noise_numpy[np.arange(bs), :nclass] = onehot[np.arange(bs)]
-    noise = torch.from_numpy(noise_numpy)
-    noise.data.copy_(noise.view(bs, nz, 1, 1))
+    pdb.set_trace()
+    noise.data.copy_(torch.from_numpy(noise_numpy).view(bs, nz, 1, 1))
     return noise
