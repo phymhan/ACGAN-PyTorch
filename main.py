@@ -53,7 +53,7 @@ parser.add_argument('--num_inception_images', type=int, default=10000)
 parser.add_argument('--netD_model', type=str, default='basic', help='[basic | snres32]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
-parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
+# parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--label_rotation', action='store_true')
 
 opt = parser.parse_args()
@@ -147,9 +147,9 @@ tac = opt.loss_type == 'tac'
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
 elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
-    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
 elif opt.dataset == 'mnist':
-    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
 else:
     raise NotImplementedError
 netG.apply(weights_init)
@@ -186,38 +186,19 @@ aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
-# noise = torch.FloatTensor(opt.batchSize, nz, 1, 1)
 noise = torch.randn(opt.batchSize, nz, requires_grad=False)
-# eval_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
 eval_noise = torch.randn(opt.batchSize, nz, requires_grad=False)
 fake_label = torch.LongTensor(opt.batchSize)
 dis_label = torch.FloatTensor(opt.batchSize)
-# aux_label = torch.LongTensor(opt.batchSize)
 real_label_const = 1
 fake_label_const = 0
 
-# define variables
-# input = Variable(input)
-# noise = Variable(noise)
-# eval_noise = Variable(eval_noise)
-# dis_label = Variable(dis_label)
-# aux_label = Variable(aux_label)
-
 # noise for evaluation
-eval_label_rotate = 0
-# eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
+eval_label_const = 0
+eval_label = torch.LongTensor(opt.batchSize).random_(0, num_classes)
 if opt.visualize_class_label >= 0:
-    # eval_label = np.ones(opt.batchSize, dtype=np.int) * opt.visualize_class_label
     eval_label_const = opt.visualize_class_label % opt.num_classes
-else:
-    # eval_label = np.random.randint(0, num_classes, opt.batchSize)
-    eval_label_const = np.random.randint(0, num_classes, 1)[0]
-eval_label = torch.LongTensor(opt.batchSize).fill_(eval_label_const)
-# eval_onehot = np.zeros((opt.batchSize, num_classes))
-# eval_onehot[np.arange(opt.batchSize), eval_label] = 1
-# eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
-# eval_noise_ = (torch.from_numpy(eval_noise_))
-# eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
+    eval_label.data.fill_(eval_label_const)
 
 # if using cuda
 if opt.cuda:
@@ -225,7 +206,6 @@ if opt.cuda:
     netG.cuda()
     dis_criterion.cuda()
     aux_criterion.cuda()
-    # input, dis_label, aux_label = input.cuda(), dis_label.cuda(), aux_label.cuda()
     input, dis_label, fake_label, eval_label = input.cuda(), dis_label.cuda(), fake_label.cuda(), eval_label.cuda()
     noise, eval_noise = noise.cuda(), eval_noise.cuda()
 
@@ -238,7 +218,6 @@ datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
 sampler = ImageSampler(netG, opt)
 get_metrics = prepare_inception_metrics(dataloader, datafile, False, opt.num_inception_images, no_is=False)
 
-# loss_names = ['errD_real', 'errD_fake', '']
 losses_D = []
 losses_G = []
 losses_A = []
@@ -262,7 +241,6 @@ for epoch in range(opt.niter):
         with torch.no_grad():
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label_const)
-            # aux_label.resize_(batch_size).copy_(label)
         if opt.loss_type == 'cgan':
             dis_output = netD(input, label)
         elif opt.loss_type == 'tac':
@@ -287,29 +265,8 @@ for epoch in range(opt.niter):
             accuracy = compute_acc(aux_output, label)
 
         # get fake
-        # if opt.shuffle_label == 'shuffle':
-        #     label = label[torch.randperm(batch_size), ...].cpu().numpy()
-        # elif opt.shuffle_label == 'uniform':
-        #     label = np.random.randint(0, num_classes, batch_size)
-        # elif opt.shuffle_label == 'same':
-        #     label = label.cpu().numpy()
-        # if opt.shuffle_label == 'shuffle':
-        #     fake_label = label[torch.randperm(batch_size), ...]
-        # elif opt.shuffle_label == 'uniform':
-        #     fake_label.random_(0, num_classes)
-        # elif opt.shuffle_label == 'same':
-        #     fake_label = label
         fake_label.resize_(batch_size).random_(0, num_classes)
-        # noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-        # noise_ = np.random.normal(0, 1, (batch_size, nz))
-        # class_onehot = np.zeros((batch_size, num_classes))
-        # class_onehot[np.arange(batch_size), label] = 1
-        # noise_[np.arange(batch_size), :num_classes] = class_onehot[np.arange(batch_size)]
-        # noise_ = (torch.from_numpy(noise_))
-        # noise.copy_(noise_.view(batch_size, nz, 1, 1))
-        # aux_label.resize_(batch_size).copy_(torch.from_numpy(label))
         noise.resize_(batch_size, nz).normal_(0, 1)
-        # aux_label = fake_label
         fake = netG(noise, fake_label)
 
         # train with fake
@@ -371,12 +328,14 @@ for epoch in range(opt.niter):
 
         print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f Acc: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A.avg))
+                 errD.item(), avg_loss_D.avg,
+                 errG.item(), avg_loss_G.avg,
+                 D_x, D_G_z1, D_G_z2,
+                 accuracy, avg_loss_A.avg))
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
             # print('Label for eval = {}'.format(eval_label))
-            eval_label.data.fill_(eval_label_const)
             fake = netG(eval_noise, eval_label)
             vutils.save_image(
                 fake.data,
@@ -384,7 +343,9 @@ for epoch in range(opt.niter):
             )
 
     # update eval_label
-    eval_label_const = (eval_label_const + 1) % num_classes if opt.label_rotation else eval_label_const
+    if opt.visualize_class_label >= 0 and opt.label_rotation:
+        eval_label_const = (eval_label_const + 1) % num_classes
+        eval_label.data.fill_(eval_label_const)
 
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,

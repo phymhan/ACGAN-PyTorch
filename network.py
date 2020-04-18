@@ -132,9 +132,6 @@ class _netD(nn.Module):
         self.fc_aux = nn.Linear(13*13*512, num_classes)
         # twin aux-classifier fc
         self.fc_tac = nn.Linear(13 * 13 * 512, num_classes) if self.tac else None
-        # softmax and sigmoid
-        # self.softmax = nn.Softmax()
-        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, input):
         if isinstance(input.data, torch.cuda.FloatTensor) and self.ngpu > 1:
@@ -242,14 +239,18 @@ class _netT(nn.Module):
 
 
 class _netG_CIFAR10(nn.Module):
-    def __init__(self, ngpu, nz, ny=10, num_classes=10):
+    def __init__(self, ngpu, nz, ny=10, num_classes=10, one_hot=False):
         super(_netG_CIFAR10, self).__init__()
         self.ngpu = ngpu
         self.nz = nz
         self.ny = ny
+        self.one_hot = one_hot
 
         # embed layer for y
-        self.embed = nn.Embedding(num_classes, self.ny)
+        if self.one_hot:
+            assert (ny == num_classes)
+        else:
+            self.embed = nn.Embedding(num_classes, self.ny)
 
         # first linear layer
         self.fc1 = nn.Linear(self.nz+self.ny, 384)
@@ -278,8 +279,8 @@ class _netG_CIFAR10(nn.Module):
         )
 
     def forward(self, z, y):
-        zy = torch.cat([z, self.embed(y)], dim=1)
-        fc1 = self.fc1(zy)
+        y_ = torch.zeros(y.size(0), self.ny).scatter_(1, y.view(-1, 1), 1).cuda() if self.one_hot else self.embed(y)
+        fc1 = self.fc1(torch.cat([z, y_], dim=1))
         fc1 = fc1.view(-1, 384, 1, 1)
         tconv2 = self.tconv2(fc1)
         tconv3 = self.tconv3(tconv2)

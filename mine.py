@@ -69,9 +69,10 @@ parser.add_argument('--netD_model', type=str, default='basic', help='[basic | pr
 parser.add_argument('--netT_model', type=str, default='concat', help='[concat | proj32 | proj64]')
 parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specified GPU')
 parser.add_argument('--bnn_dropout', type=float, default=0.)
-parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
+# parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 parser.add_argument('--label_rotation', action='store_true')
+parser.add_argument('--eps', type=float, default=0., help='eps added in log')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -163,9 +164,9 @@ nc = 3
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
 elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
-    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
 elif opt.dataset == 'mnist':
-    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
 else:
     raise NotImplementedError
 netG.apply(weights_init)
@@ -232,43 +233,28 @@ aux_criterion = nn.CrossEntropyLoss()
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
-noise = torch.FloatTensor(opt.batchSize, nz, 1, 1)
-eval_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
+noise = torch.randn(opt.batchSize, nz, requires_grad=False)
+eval_noise = torch.randn(opt.batchSize, nz, requires_grad=False)
+fake_label = torch.LongTensor(opt.batchSize)
 dis_label = torch.FloatTensor(opt.batchSize)
-aux_label = torch.LongTensor(opt.batchSize)
-aux_label_bar = torch.LongTensor(opt.batchSize)
 real_label_const = 1
 fake_label_const = 0
+
+# noise for evaluation
+eval_label_const = 0
+eval_label = torch.LongTensor(opt.batchSize).random_(0, num_classes)
+if opt.visualize_class_label >= 0:
+    eval_label_const = opt.visualize_class_label % opt.num_classes
+    eval_label.data.fill_(eval_label_const)
 
 # if using cuda
 if opt.cuda:
     netD.cuda()
     netG.cuda()
-    netT.cuda()
     dis_criterion.cuda()
     aux_criterion.cuda()
-    input, dis_label, aux_label, aux_label_bar = input.cuda(), dis_label.cuda(), aux_label.cuda(), aux_label_bar.cuda()
+    input, dis_label, fake_label, eval_label = input.cuda(), dis_label.cuda(), fake_label.cuda(), eval_label.cuda()
     noise, eval_noise = noise.cuda(), eval_noise.cuda()
-
-# define variables
-input = Variable(input)
-noise = Variable(noise)
-eval_noise = Variable(eval_noise)
-dis_label = Variable(dis_label)
-aux_label = Variable(aux_label)
-aux_label_bar = Variable(aux_label_bar)
-# noise for evaluation
-eval_label_rotate = 0
-eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
-if opt.visualize_class_label >= 0:
-    eval_label = np.ones(opt.batchSize, dtype=np.int) * opt.visualize_class_label
-else:
-    eval_label = np.random.randint(0, num_classes, opt.batchSize)
-eval_onehot = np.zeros((opt.batchSize, num_classes))
-eval_onehot[np.arange(opt.batchSize), eval_label] = 1
-eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
-eval_noise_ = (torch.from_numpy(eval_noise_))
-eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -301,44 +287,31 @@ for epoch in range(opt.niter):
         real_cpu, label = data
         batch_size = real_cpu.size(0)
         if opt.cuda:
-            real_cpu = real_cpu.cuda()
+            real_cpu, label = real_cpu.cuda(), label.cuda()
         with torch.no_grad():
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label_const)
-            aux_label.resize_(batch_size).copy_(label)
         dis_output, aux_output = netD(input)
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
-        aux_errD_real = aux_criterion(aux_output, aux_label)
+        aux_errD_real = aux_criterion(aux_output, label)
         errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
         D_x = torch.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
-        accuracy = compute_acc(aux_output, aux_label)
+        accuracy = compute_acc(aux_output, label)
+
+        # get fake
+        fake_label.resize_(batch_size).random_(0, num_classes)
+        noise.resize_(batch_size, nz).normal_(0, 1)
+        fake = netG(noise, fake_label)
 
         # train with fake
-        if opt.shuffle_label == 'shuffle':
-            label = label[torch.randperm(batch_size), ...].cpu().numpy()
-        elif opt.shuffle_label == 'uniform':
-            label = np.random.randint(0, num_classes, batch_size)
-        elif opt.shuffle_label == 'same':
-            label = label.cpu().numpy()
-        noise.resize_(batch_size, nz, 1, 1).normal_(0, 1)
-        noise_ = np.random.normal(0, 1, (batch_size, nz))
-        class_onehot = np.zeros((batch_size, num_classes))
-        class_onehot[np.arange(batch_size), label] = 1
-        noise_[np.arange(batch_size), :num_classes] = class_onehot[np.arange(batch_size)]
-        noise_ = (torch.from_numpy(noise_))
-        noise.copy_(noise_.view(batch_size, nz, 1, 1))
-        aux_label.resize_(batch_size).copy_(torch.from_numpy(label))
-        fake = netG(noise)
-
-        # train with fake
-        dis_label.fill_(fake_label_const)
+        dis_label.resize_(batch_size).fill_(fake_label_const)
         dis_output, aux_output = netD(fake.detach())
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        aux_errD_fake = aux_criterion(aux_output, aux_label)
+        aux_errD_fake = aux_criterion(aux_output, fake_label)
         errD_fake = dis_errD_fake + aux_errD_fake
         errD_fake.backward()
         D_G_z1 = torch.sigmoid(dis_output).data.mean()
@@ -351,14 +324,14 @@ for epoch in range(opt.niter):
         # label_bar = np.random.randint(0, num_classes, batch_size)
         # aux_label_bar.resize_(batch_size).copy_(torch.from_numpy(label_bar))
         # y, y_bar = aux_label, aux_label_bar
-        y = aux_label
+        y = fake_label
         for _ in range(opt.n_update_mine):
             y_bar = y[torch.randperm(batch_size), ...]
             et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
             if netT.ma_et is None:
                 netT.ma_et = et.detach().item()
             netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
-            mi = torch.mean(netT(fake.detach(), y)) - torch.log(et+1e-8) * et.detach() / netT.ma_et
+            mi = torch.mean(netT(fake.detach(), y)) - torch.log(et+opt.eps) * et.detach() / netT.ma_et
             loss_mine = -mi * opt.lambda_mi if opt.weighted_mine_loss else -mi
             optimizerT.zero_grad()
             loss_mine.backward()
@@ -371,9 +344,9 @@ for epoch in range(opt.niter):
         dis_label.data.fill_(real_label_const)  # fake labels are real for generator cost
         dis_output, aux_output = netD(fake)
         dis_errG = dis_criterion(dis_output, dis_label)
-        aux_errG = aux_criterion(aux_output, aux_label)
+        aux_errG = aux_criterion(aux_output, fake_label)
         y_bar = y[torch.randperm(batch_size), ...]
-        mi_errG = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar)))+1e-8)
+        mi_errG = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar)))+opt.eps)
         errG = dis_errG + aux_errG + opt.lambda_mi * mi_errG
 
         # adaptive
@@ -407,21 +380,25 @@ for epoch in range(opt.niter):
 
         print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f Acc: %.4f (%.4f) MI: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
-                 errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2, accuracy, avg_loss_A.avg, mi.item(), avg_loss_M.avg))
+                 errD.item(), avg_loss_D.avg,
+                 errG.item(), avg_loss_G.avg,
+                 D_x, D_G_z1, D_G_z2,
+                 accuracy, avg_loss_A.avg,
+                 mi.item(), avg_loss_M.avg))
         if i % 100 == 0:
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
             # print('Label for eval = {}'.format(eval_label))
-            fake = netG(eval_noise)
+            fake = netG(eval_noise, eval_label)
             vutils.save_image(
                 fake.data,
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
 
-    # update eval_noise
-    if opt.label_rotation:
-        eval_noise = set_onehot(eval_noise, eval_label_rotate % num_classes, num_classes)
-        eval_label_rotate += 1
+    # update eval_label
+    if opt.visualize_class_label >= 0 and opt.label_rotation:
+        eval_label_const = (eval_label_const + 1) % num_classes
+        eval_label.data.fill_(eval_label_const)
 
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
