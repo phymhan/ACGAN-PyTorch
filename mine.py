@@ -16,7 +16,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
-from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options
+from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options, set_onehot
 from network import _netG, _netD, _netT, _netD_CIFAR10, _netD_SNRes32, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
 from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32, _netDT_SNResProj32
 from folder import ImageFolder
@@ -69,6 +69,7 @@ parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specifi
 parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
+parser.add_argument('--label_rotation', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -129,6 +130,15 @@ elif opt.dataset == 'cifar10':
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ]))
+elif opt.dataset == 'cifar100':
+    opt.imageSize = 32
+    dataset = dset.CIFAR100(
+        root=opt.dataroot, download=True,
+        transform=transforms.Compose([
+            transforms.Scale(opt.imageSize),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]))
 elif opt.dataset == 'mnist':
     opt.imageSize = 32
     dataset = dset.MNIST(
@@ -158,7 +168,7 @@ nc = 3
 # Define the generator and initialize the weights
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
-elif opt.dataset == 'cifar10':
+elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
     netG = _netG_CIFAR10(ngpu, nz)
 elif opt.dataset == 'mnist':
     netG = _netG_CIFAR10(ngpu, nz)
@@ -172,7 +182,7 @@ print(netG)
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes)
-elif opt.dataset == 'mnist' or opt.dataset == 'cifar10':
+elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
     if opt.use_shared_T:
         if opt.netD_model == 'proj32':
             netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout,
@@ -254,6 +264,7 @@ dis_label = Variable(dis_label)
 aux_label = Variable(aux_label)
 aux_label_bar = Variable(aux_label_bar)
 # noise for evaluation
+eval_label_rotate = 0
 eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
 if opt.visualize_class_label >= 0:
     eval_label = np.ones(opt.batchSize, dtype=np.int) * opt.visualize_class_label
@@ -412,6 +423,11 @@ for epoch in range(opt.niter):
                 fake.data,
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
+
+    # update eval_noise
+    if opt.label_rotation:
+        eval_noise = set_onehot(eval_noise, eval_label_rotate % num_classes, num_classes)
+        eval_label_rotate += 1
 
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,

@@ -104,3 +104,16 @@ def print_options(parser, opt):
             cmd_file.write('CUDA_VISIBLE_DEVICES=%s ' % os.getenv('CUDA_VISIBLE_DEVICES'))
         cmd_file.write(' '.join(sys.argv))
         cmd_file.write('\n')
+
+
+def set_onehot(noise, label, nclass):
+    bs = noise.size(0)
+    nz = noise.size(1)
+    label = np.ones(bs, dtype=np.int) * label
+    noise_numpy = noise.cpu().numpy()
+    onehot = np.zeros((bs, nclass))
+    onehot[np.arange(bs), label] = 1
+    noise_numpy[np.arange(bs), :nclass] = onehot[np.arange(bs)]
+    noise = torch.from_numpy(noise_numpy)
+    noise.data.copy_(noise.view(bs, nz, 1, 1))
+    return noise
