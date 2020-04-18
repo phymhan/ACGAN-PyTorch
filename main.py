@@ -31,6 +31,7 @@ parser.add_argument('--workers', type=int, help='number of data loading workers'
 parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=128, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
+parser.add_argument('--ny', type=int, default=0, help='size of the latent embedding vector for y')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
@@ -134,6 +135,7 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
 # some hyper parameters
 ngpu = int(opt.ngpu)
 nz = int(opt.nz)
+ny = int(opt.num_classes) if opt.ny == 0 else int(opt.ny)  # embedding dim same as onehot embedding by default
 ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 num_classes = int(opt.num_classes)
@@ -144,9 +146,9 @@ tac = opt.loss_type == 'tac'
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
 elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
-    netG = _netG_CIFAR10(ngpu, nz, num_classes)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
 elif opt.dataset == 'mnist':
-    netG = _netG_CIFAR10(ngpu, nz, num_classes)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes)
 else:
     raise NotImplementedError
 netG.apply(weights_init)
@@ -254,7 +256,7 @@ for epoch in range(opt.niter):
         real_cpu, label = data
         batch_size = real_cpu.size(0)
         if opt.cuda:
-            real_cpu = real_cpu.cuda()
+            real_cpu, label = real_cpu.cuda(), label.cuda()
         with torch.no_grad():
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label_const)

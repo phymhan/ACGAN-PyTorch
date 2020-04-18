@@ -242,11 +242,11 @@ class _netT(nn.Module):
 
 
 class _netG_CIFAR10(nn.Module):
-    def __init__(self, ngpu, nz, num_classes=10):
+    def __init__(self, ngpu, nz, ny=10, num_classes=10):
         super(_netG_CIFAR10, self).__init__()
         self.ngpu = ngpu
         self.nz = nz
-        self.ny = num_classes  # embedding dim same as onehot embedding
+        self.ny = ny
 
         # embed layer for y
         self.embed = nn.Embedding(num_classes, self.ny)
