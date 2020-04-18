@@ -243,8 +243,8 @@ eval_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
 dis_label = torch.FloatTensor(opt.batchSize)
 aux_label = torch.LongTensor(opt.batchSize)
 aux_label_bar = torch.LongTensor(opt.batchSize)
-real_label = 1
-fake_label = 0
+real_label_const = 1
+fake_label_const = 0
 
 # if using cuda
 if opt.cuda:
@@ -310,7 +310,7 @@ for epoch in range(opt.niter):
             real_cpu = real_cpu.cuda()
         with torch.no_grad():
             input.resize_as_(real_cpu).copy_(real_cpu)
-            dis_label.resize_(batch_size).fill_(real_label)
+            dis_label.resize_(batch_size).fill_(real_label_const)
             aux_label.resize_(batch_size).copy_(label)
         dis_output, aux_output = netD(input)
 
@@ -341,7 +341,7 @@ for epoch in range(opt.niter):
         fake = netG(noise)
 
         # train with fake
-        dis_label.fill_(fake_label)
+        dis_label.fill_(fake_label_const)
         dis_output, aux_output = netD(fake.detach())
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         aux_errD_fake = aux_criterion(aux_output, aux_label)
@@ -374,7 +374,7 @@ for epoch in range(opt.niter):
         # (3) Update G network: maximize log(D(G(z)))
         ###########################
         netG.zero_grad()
-        dis_label.data.fill_(real_label)  # fake labels are real for generator cost
+        dis_label.data.fill_(real_label_const)  # fake labels are real for generator cost
         dis_output, aux_output = netD(fake)
         dis_errG = dis_criterion(dis_output, dis_label)
         aux_errG = aux_criterion(aux_output, aux_label)

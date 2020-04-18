@@ -195,16 +195,6 @@ dis_label = torch.FloatTensor(opt.batchSize)
 real_label_const = 1
 fake_label_const = 0
 
-# if using cuda
-if opt.cuda:
-    netD.cuda()
-    netG.cuda()
-    dis_criterion.cuda()
-    aux_criterion.cuda()
-    # input, dis_label, aux_label = input.cuda(), dis_label.cuda(), aux_label.cuda()
-    input, dis_label, fake_label = input.cuda(), dis_label.cuda(), fake_label.cuda()
-    noise, eval_noise = noise.cuda(), eval_noise.cuda()
-
 # define variables
 # input = Variable(input)
 # noise = Variable(noise)
@@ -217,15 +207,26 @@ eval_label_rotate = 0
 # eval_noise_ = np.random.normal(0, 1, (opt.batchSize, nz))
 if opt.visualize_class_label >= 0:
     # eval_label = np.ones(opt.batchSize, dtype=np.int) * opt.visualize_class_label
-    eval_label = opt.visualize_class_label % opt.num_classes
+    eval_label_const = opt.visualize_class_label % opt.num_classes
 else:
     # eval_label = np.random.randint(0, num_classes, opt.batchSize)
-    eval_label = np.random.randint(0, num_classes, 1)[0]
+    eval_label_const = np.random.randint(0, num_classes, 1)[0]
+eval_label = torch.LongTensor(opt.batchSize).fill_(eval_label_const)
 # eval_onehot = np.zeros((opt.batchSize, num_classes))
 # eval_onehot[np.arange(opt.batchSize), eval_label] = 1
 # eval_noise_[np.arange(opt.batchSize), :num_classes] = eval_onehot[np.arange(opt.batchSize)]
 # eval_noise_ = (torch.from_numpy(eval_noise_))
 # eval_noise.data.copy_(eval_noise_.view(opt.batchSize, nz, 1, 1))
+
+# if using cuda
+if opt.cuda:
+    netD.cuda()
+    netG.cuda()
+    dis_criterion.cuda()
+    aux_criterion.cuda()
+    # input, dis_label, aux_label = input.cuda(), dis_label.cuda(), aux_label.cuda()
+    input, dis_label, fake_label, eval_label = input.cuda(), dis_label.cuda(), fake_label.cuda(), eval_label.cuda()
+    noise, eval_noise = noise.cuda(), eval_noise.cuda()
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -373,14 +374,15 @@ for epoch in range(opt.niter):
             vutils.save_image(
                 real_cpu, '%s/real_samples.png' % opt.outf)
             # print('Label for eval = {}'.format(eval_label))
-            fake = netG(eval_noise)
+            eval_label.data.fill_(eval_label_const)
+            fake = netG(eval_noise, eval_label)
             vutils.save_image(
                 fake.data,
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
 
     # update eval_label
-    eval_label = (eval_label + 1) % num_classes if opt.label_rotation else eval_label
+    eval_label_const = (eval_label_const + 1) % num_classes if opt.label_rotation else eval_label_const
 
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
