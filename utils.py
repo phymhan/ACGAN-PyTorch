@@ -110,7 +110,7 @@ def set_onehot(noise, label, nclass):
     bs = noise.size(0)
     nz = noise.size(1)
     label = np.ones(bs, dtype=np.int) * label
-    noise_numpy = noise.cpu().numpy()
+    noise_numpy = noise.view(bs, nz).cpu().numpy()
     onehot = np.zeros((bs, nclass))
     onehot[np.arange(bs), label] = 1
     noise_numpy[np.arange(bs), :nclass] = onehot[np.arange(bs)]

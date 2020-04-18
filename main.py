@@ -165,7 +165,7 @@ print(netG)
 
 # Define the discriminator and initialize the weights
 if opt.dataset == 'imagenet':
-    netD = _netD(ngpu, num_classes, tac=opt.loss_type=='tac')
+    netD = _netD(ngpu, num_classes, tac=opt.loss_type == 'tac')
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
     if opt.loss_type == 'cgan':
         if opt.netD_model == 'snres32':
