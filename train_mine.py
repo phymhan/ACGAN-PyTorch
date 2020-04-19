@@ -178,7 +178,7 @@ for epoch in range(opt.niter):
         if netD.ma_et is None:
             netD.ma_et = et.detach().item()
         netD.ma_et += opt.ma_rate * (et.detach().item() - netD.ma_et)
-        mi = torch.mean(netD(input, y, 'P')) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
+        mi = torch.mean(netD(input, y)) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
         (-mi).backward()
         optimizerD.step()
 
