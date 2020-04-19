@@ -196,10 +196,11 @@ for epoch in range(opt.niter):
         avg_loss_Acc.update(accuracy, batch_size)
         avg_loss_Hy.update(hy.item(), batch_size)
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) H_Y: %.4f (%.4f) Acc: %.4f (%.4f)'
+        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) H_Y: %.4f (%.4f) MI: %.4f (%.4f) Acc: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
                  aux_errD.item(), avg_loss_Aux.avg,
                  hy.item(), avg_loss_Hy.avg,
+                 hy.item() - aux_errD.item(), avg_loss_Hy.avg - avg_loss_Aux.avg,
                  accuracy, avg_loss_Acc.avg))
 
     writer.add_scalar('Loss/Aux', avg_loss_Aux.avg, epoch)
