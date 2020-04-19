@@ -167,7 +167,6 @@ for epoch in range(opt.niter):
     avg_loss_Aux = AverageMeter()
     avg_loss_Acc = AverageMeter()
     avg_loss_Hy = AverageMeter()
-    # label_counter = torch.zeros(num_classes)
 
     for i, data in enumerate(dataloader, 0):
         netD.zero_grad()
@@ -188,9 +187,7 @@ for epoch in range(opt.niter):
         accuracy = compute_acc(aux_output, label)
 
         # compute entropy
-        # label_counter += torch.histc(label.cpu(), bins=num_classes, min=0, max=num_classes-1)
-        # py = label_counter / label_counter.sum()
-        hist = torch.histc(label.cpu(), bins=num_classes, min=0, max=num_classes-1)
+        hist = torch.histc(label.cpu().float(), bins=num_classes, min=0, max=num_classes-1)
         py = hist / hist.sum()
         hy = -torch.sum(py * torch.log(py+1e-8))
 
