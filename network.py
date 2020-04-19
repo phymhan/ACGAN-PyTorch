@@ -608,7 +608,7 @@ class _netDT_SNResProj32(nn.Module):
             # netT(x, y)
             cy = self.c_y(y) if self.use_cy else 0.0
             if self.softmax:
-                logprob = torch.log(torch.softmax(self.fc_t(h), dim=1))
+                logprob = torch.log_softmax(self.fc_t(h), dim=1)
                 output = logprob[range(y.size(0)), y].view(y.size(0), 1) + cy
             else:
                 output = self.l5(h)
@@ -717,7 +717,7 @@ class _netDT2_SNResProj32(nn.Module):
             if distribution == 'P':
                 cy = self.c_y_P(y) if self.use_cy else 0.0
                 if self.softmax:
-                    logprob = torch.log(torch.softmax(self.fc_t_P(h), dim=1))
+                    logprob = torch.log_softmax(self.fc_t_P(h), dim=1)
                     output = logprob[range(y.size(0)), y].view(y.size(0), 1) + cy
                 else:
                     output = self.l5_P(h)
@@ -725,7 +725,7 @@ class _netDT2_SNResProj32(nn.Module):
             elif distribution == 'Q':
                 cy = self.c_y_Q(y) if self.use_cy else 0.0
                 if self.softmax:
-                    logprob = torch.log(torch.softmax(self.fc_t_Q(h), dim=1))
+                    logprob = torch.log_softmax(self.fc_t_Q(h), dim=1)
                     output = logprob[range(y.size(0)), y].view(y.size(0), 1) + cy
                 else:
                     output = self.l5_Q(h)
@@ -759,13 +759,13 @@ class _netDT2_SNResProj32(nn.Module):
 
         if distribution == 'P':
             if self.softmax:
-                output = torch.log(torch.softmax(self.fc_t_P(h), dim=1))[range(y.size(0)), y].view(y.size(0), 1)
+                output = torch.log_softmax(self.fc_t_P(h), dim=1)[range(y.size(0)), y].view(y.size(0), 1)
             else:
                 output = self.l5_P(h)
                 output += torch.sum(self.l_y_P(y) * h, dim=1, keepdim=True)
         elif distribution == 'Q':
             if self.softmax:
-                output = torch.log(torch.softmax(self.fc_t_Q(h), dim=1))[range(y.size(0)), y].view(y.size(0), 1)
+                output = torch.log_softmax(self.fc_t_Q(h), dim=1)[range(y.size(0)), y].view(y.size(0), 1)
             else:
                 output = self.l5_Q(h)
                 output += torch.sum(self.l_y_Q(y) * h, dim=1, keepdim=True)
