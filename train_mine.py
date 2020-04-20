@@ -58,6 +58,9 @@ parser.add_argument('--bnn_dropout', type=float, default=0.)
 parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 parser.add_argument('--label_rotation', action='store_true')
 parser.add_argument('--eps', type=float, default=0., help='eps added in log')
+parser.add_argument('--no_ma_trick', action='store_true')
+parser.add_argument('--use_softmax_trick', action='store_true')
+parser.add_argument('--detach_max', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -174,11 +177,23 @@ for epoch in range(opt.niter):
         # train with real
         y = label
         y_bar = y[torch.randperm(batch_size), ...]
-        et = torch.mean(torch.exp(netD(input, y_bar)))
-        if netD.ma_et is None:
-            netD.ma_et = et.detach().item()
-        netD.ma_et += opt.ma_rate * (et.detach().item() - netD.ma_et)
-        mi = torch.mean(netD(input, y)) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
+
+        if opt.no_ma_trick:
+            if opt.use_softmax_trick:
+                tbar = netD(input, y_bar)
+                tbar_max = tbar.max().detach() if opt.detach_max else tbar.max()
+                log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
+                mi = torch.mean(netD(input, y)) - log_mean_exp_tbar
+            else:
+                et = torch.mean(torch.exp(netD(input, y_bar)))
+                mi = torch.mean(netD(input, y)) - torch.log(et+1e-8)
+        else:
+            # use ma trick
+            et = torch.mean(torch.exp(netD(input, y_bar)))
+            if netD.ma_et is None:
+                netD.ma_et = et.detach().item()
+            netD.ma_et += opt.ma_rate * (et.detach().item() - netD.ma_et)
+            mi = torch.mean(netD(input, y)) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
         (-mi).backward()
         optimizerD.step()
 
