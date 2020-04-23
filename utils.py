@@ -54,8 +54,8 @@ class AverageMeter(object):
 class ImageSampler:
     def __init__(self, G, opt):
         self.G = G
-        self.noise = torch.FloatTensor(opt.batchSize, opt.nz)
-        self.label = torch.LongTensor(opt.batchSize)
+        self.noise = torch.FloatTensor(opt.samplerBatchSize, opt.nz)
+        self.label = torch.LongTensor(opt.samplerBatchSize)
         self.batchSize = opt.batchSize
         self.opt = opt
 
