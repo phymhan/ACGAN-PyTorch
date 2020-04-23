@@ -97,6 +97,7 @@ if opt.cuda:
 
 if opt.disable_cudnn_benchmark:
     cudnn.benchmark = False
+    torch.backends.cudnn.enabled = False
 else:
     cudnn.benchmark = True
 
