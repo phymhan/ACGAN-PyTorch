@@ -60,7 +60,6 @@ parser.add_argument('--label_rotation', action='store_true')
 parser.add_argument('--eps', type=float, default=0., help='eps added in log')
 parser.add_argument('--no_ma_trick', action='store_true')
 parser.add_argument('--use_softmax_trick', action='store_true')
-parser.add_argument('--detach_max', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -157,7 +156,6 @@ if opt.cuda:
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-
 dset_name = os.path.split(opt.dataroot)[-1]
 datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
 
@@ -181,7 +179,7 @@ for epoch in range(opt.niter):
         if opt.no_ma_trick:
             if opt.use_softmax_trick:
                 tbar = netD(input, y_bar)
-                tbar_max = tbar.max().detach() if opt.detach_max else tbar.max()
+                tbar_max = tbar.max().detach()
                 log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
                 mi = torch.mean(netD(input, y)) - log_mean_exp_tbar
             else:

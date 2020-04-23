@@ -55,6 +55,7 @@ parser.add_argument('--gpu_id', type=int, default=0, help='The ID of the specifi
 parser.add_argument('--bnn_dropout', type=float, default=0.)
 # parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--label_rotation', action='store_true')
+parser.add_argument('--disable_cudnn_benchmark', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -76,7 +77,10 @@ torch.manual_seed(opt.manualSeed)
 if opt.cuda:
     torch.cuda.manual_seed_all(opt.manualSeed)
 
-cudnn.benchmark = True
+if opt.disable_cudnn_benchmark:
+    cudnn.benchmark = False
+else:
+    cudnn.benchmark = True
 
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
