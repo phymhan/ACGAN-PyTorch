@@ -74,6 +74,7 @@ parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 parser.add_argument('--label_rotation', action='store_true')
 parser.add_argument('--eps', type=float, default=0., help='eps added in log')
 parser.add_argument('--disable_cudnn_benchmark', action='store_true')
+parser.add_argument('--no_ac_on_fake', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -316,7 +317,7 @@ for epoch in range(opt.niter):
         dis_label.resize_(batch_size).fill_(fake_label_const)
         dis_output, aux_output = netD(fake.detach())
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        aux_errD_fake = aux_criterion(aux_output, fake_label)
+        aux_errD_fake = 0. if opt.no_ac_on_fake else aux_criterion(aux_output, fake_label)
         errD_fake = dis_errD_fake + aux_errD_fake
         errD_fake.backward()
         D_G_z1 = torch.sigmoid(dis_output).data.mean()

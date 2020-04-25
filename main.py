@@ -58,6 +58,7 @@ parser.add_argument('--bnn_dropout', type=float, default=0.)
 # parser.add_argument('--shuffle_label', type=str, default='uniform', help='[uniform | shuffle | same]')
 parser.add_argument('--label_rotation', action='store_true')
 parser.add_argument('--disable_cudnn_benchmark', action='store_true')
+parser.add_argument('--no_ac_on_fake', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -302,7 +303,7 @@ for epoch in range(opt.niter):
             raise RuntimeError
 
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
+        if (opt.loss_type == 'cgan' or opt.loss_type == 'gan') or opt.no_ac_on_fake:
             aux_errD_fake = 0.
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
