@@ -53,7 +53,6 @@ parser.add_argument('--num_classes', type=int, default=10, help='Number of class
 parser.add_argument('--loss_type', type=str, default='mine', help='[ac | tac | mine]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
-# parser.add_argument('--lambda_mi_grad', type=float, default=1.)
 parser.add_argument('--lambda_mi', type=float, default=1.)
 parser.add_argument('--adaptive', action='store_true')
 parser.add_argument('--adaptive_grad', type=str, default='dc', help='[d | c | dc]')

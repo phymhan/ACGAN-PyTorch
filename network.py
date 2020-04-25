@@ -239,21 +239,26 @@ class _netT(nn.Module):
 
 
 class _netG_CIFAR10(nn.Module):
-    def __init__(self, ngpu, nz, ny=10, num_classes=10, one_hot=False):
+    def __init__(self, ngpu, nz, ny=10, num_classes=10, one_hot=False, ignore_y=False):
         super(_netG_CIFAR10, self).__init__()
         self.ngpu = ngpu
         self.nz = nz
         self.ny = ny
         self.one_hot = one_hot
+        self.ignore_y = ignore_y
 
-        # embed layer for y
-        if self.one_hot:
-            assert (ny == num_classes)
+        if self.ignore_y:
+            # first linear layer
+            self.fc1 = nn.Linear(self.nz, 384)
         else:
-            self.embed = nn.Embedding(num_classes, self.ny)
+            # embed layer for y
+            if self.one_hot:
+                assert (ny == num_classes)
+            else:
+                self.embed = nn.Embedding(num_classes, self.ny)
+            # first linear layer
+            self.fc1 = nn.Linear(self.nz + self.ny, 384)
 
-        # first linear layer
-        self.fc1 = nn.Linear(self.nz+self.ny, 384)
         # Transposed Convolution 2
         self.tconv2 = nn.Sequential(
             nn.ConvTranspose2d(384, 192, 4, 1, 0, bias=False),
@@ -278,9 +283,12 @@ class _netG_CIFAR10(nn.Module):
             nn.Tanh(),
         )
 
-    def forward(self, z, y):
-        y_ = torch.zeros(y.size(0), self.ny).cuda().scatter_(1, y.view(-1, 1), 1) if self.one_hot else self.embed(y)
-        fc1 = self.fc1(torch.cat([z, y_], dim=1))
+    def forward(self, z, y=None):
+        if self.ignore_y:
+            fc1 = self.fc1(z)
+        else:
+            y_ = torch.zeros(y.size(0), self.ny).cuda().scatter_(1, y.view(-1, 1), 1) if self.one_hot else self.embed(y)
+            fc1 = self.fc1(torch.cat([z, y_], dim=1))
         fc1 = fc1.view(-1, 384, 1, 1)
         tconv2 = self.tconv2(fc1)
         tconv3 = self.tconv3(tconv2)

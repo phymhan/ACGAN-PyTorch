@@ -46,7 +46,8 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
-parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac | cgan]')
+parser.add_argument('--loss_type', type=str, default='ac', help='[ac | tac | cgan | gan]')
+parser.add_argument('--ignore_y', action='store_true')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--lambda_tac', type=float, default=1.0)
 parser.add_argument('--download_dset', action='store_true')
@@ -153,9 +154,9 @@ tac = opt.loss_type == 'tac'
 if opt.dataset == 'imagenet':
     netG = _netG(ngpu, nz)
 elif opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
-    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed, ignore_y=opt.ignore_y)
 elif opt.dataset == 'mnist':
-    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
+    netG = _netG_CIFAR10(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed, ignore_y=opt.ignore_y)
 else:
     raise NotImplementedError
 netG.apply(weights_init)
@@ -170,6 +171,11 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar
     if opt.loss_type == 'cgan':
         if opt.netD_model == 'snres32':
             netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False)
+        else:
+            raise NotImplementedError
+    elif opt.loss_type == 'gan':
+        if opt.netD_model == 'snres32':
+            netD = SNResNetProjectionDiscriminator32(opt.ndf, 0, use_cy=False)
         else:
             raise NotImplementedError
     else:
@@ -249,6 +255,8 @@ for epoch in range(opt.niter):
             dis_label.resize_(batch_size).fill_(real_label_const)
         if opt.loss_type == 'cgan':
             dis_output = netD(input, label)
+        elif opt.loss_type == 'gan':
+            dis_output = netD(input)
         elif opt.loss_type == 'tac':
             dis_output, aux_output, _ = netD(input)
         elif opt.loss_type == 'ac':
@@ -256,7 +264,7 @@ for epoch in range(opt.niter):
         else:
             raise RuntimeError
         dis_errD_real = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'cgan':
+        if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
             aux_errD_real = 0.
         else:
             aux_errD_real = aux_criterion(aux_output, label)
@@ -265,7 +273,7 @@ for epoch in range(opt.niter):
         D_x = torch.sigmoid(dis_output).data.mean()
 
         # compute the current classification accuracy
-        if opt.loss_type == 'cgan':
+        if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
             accuracy = 1. / opt.num_classes
         else:
             accuracy = compute_acc(aux_output, label)
@@ -280,6 +288,9 @@ for epoch in range(opt.niter):
         if opt.loss_type == 'cgan':
             dis_output = netD(fake.detach(), fake_label)
             tac_errD_fake = 0.
+        elif opt.loss_type == 'gan':
+            dis_output = netD(fake.detach())
+            tac_errD_fake = 0.
         elif opt.loss_type == 'tac':
             dis_output, aux_output, tac_output = netD(fake.detach())
             # tac on fake
@@ -291,7 +302,7 @@ for epoch in range(opt.niter):
             raise RuntimeError
 
         dis_errD_fake = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'cgan':
+        if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
             aux_errD_fake = 0.
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
@@ -309,6 +320,9 @@ for epoch in range(opt.niter):
         if opt.loss_type == 'cgan':
             dis_output = netD(fake, fake_label)
             tac_errG = 0.
+        elif opt.loss_type == 'gan':
+            dis_output = netD(fake)
+            tac_errG = 0.
         elif opt.loss_type == 'tac':
             dis_output, aux_output, tac_output = netD(fake)
             tac_errG = aux_criterion(tac_output, fake_label)
@@ -318,7 +332,7 @@ for epoch in range(opt.niter):
         else:
             raise RuntimeError
         dis_errG = dis_criterion(dis_output, dis_label)
-        if opt.loss_type == 'cgan':
+        if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
             aux_errG = 0.
         else:
             aux_errG = aux_criterion(aux_output, fake_label)
