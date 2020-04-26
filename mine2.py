@@ -595,11 +595,11 @@ for epoch in range(opt.niter):
                  mi_P.item(), avg_loss_IP.avg, mi_Q.item(), avg_loss_IQ.avg, accuracy, avg_loss_A.avg))
         if i % 100 == 0:
             vutils.save_image(
-                real_cpu, '%s/real_samples.png' % opt.outf)
+                utils.normalize(real_cpu), '%s/real_samples.png' % opt.outf)
             # print('Label for eval = {}'.format(eval_label))
             fake = netG(eval_noise, eval_label)
             vutils.save_image(
-                fake.data,
+                utils.normalize(fake.data),
                 '%s/fake_samples_epoch_%03d.png' % (opt.outf, epoch)
             )
 

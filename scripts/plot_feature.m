@@ -1,31 +1,22 @@
-src = '/media/ligong/Picasso/Active/ws-gan/sourcefiles/MNIST_sample.txt';
+cifar = 'cifar10';
+model = 'tac+naof';
 
-f = readNPY('~/mnist-image.npy');
-l = readNPY('~/mnist-label.npy');
-t = readNPY('~/mnist-thick.npy');
+ep = 14;
 
-f = reshape(f, 1000, 784);
-y = tsne(f);
+f_fake = readNPY(sprintf('/media/ligong/Passport/Share/cbimfs/Active/ACGAN-PyTorch/results_feat/%s/%s/features/fake_epoch_%d_batch_0_f.npy', cifar, model, ep));
+y_fake = readNPY(sprintf('/media/ligong/Passport/Share/cbimfs/Active/ACGAN-PyTorch/results_feat/%s/%s/features/fake_epoch_%d_batch_0_y.npy', cifar, model, ep));
+f_real = readNPY(sprintf('/media/ligong/Passport/Share/cbimfs/Active/ACGAN-PyTorch/results_feat/%s/%s/features/real_epoch_%d_batch_0_f.npy', cifar, model, ep));
+y_real = readNPY(sprintf('/media/ligong/Passport/Share/cbimfs/Active/ACGAN-PyTorch/results_feat/%s/%s/features/real_epoch_%d_batch_0_y.npy', cifar, model, ep));
 
-shapes = {'o', '+', '*', 'v', 'x', 's', 'd', '^', 'p', 'h'};
-colors = {[0    0.4470    0.7410], [0.8500    0.3250    0.0980], [0.9290    0.6940    0.1250]};
+f = cat(1, f_fake, f_real);
+y = cat(1, y_fake, y_real);
 
-hf = figure;
-hold on
-for i = 1:3
-    plot(nan, nan, 's', 'markerfacecolor', colors{i}, 'markeredgecolor', colors{i})
-end
-hold off
+f2 = tsne(f);
 
-for i = 1:length(l)
-    line(y(i,1), y(i,2), 'Marker', shapes{l(i)+1}, 'MarkerSize', 4, 'Color', colors{t(i)});
-end
-legend('thin', 'normal', 'thick')
+y_disc = cat(1, zeros(256,1), ones(256,1));
 
-hf.Position = [793 275 250 235];
-grid on
-box on
-set(hf, 'color', [1 1 1])
-hf.Position = [793 275 250 235];
+figure; gscatter(f2(:,1), f2(:,2), y_disc)
+figure; gscatter(f2(:,1), f2(:,2), y)
 
-% export_fig mnist_tsne.pdf
+f2_real = tsne(f_real);
+figure; gscatter(f2_real(:,1), f2_real(:,2), y_real)

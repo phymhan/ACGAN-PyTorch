@@ -75,8 +75,7 @@ class ImageSampler:
         # fake = self.G(self.noise.cuda())
         self.noise.normal_(0, 1)
         self.label.random_(0, self.opt.num_classes)
-        fake = self.G(self.noise.cuda(), self.label.cuda())
-        return fake, self.label
+        return self.G(self.noise.cuda(), self.label.cuda()), self.label
 
 
 def print_options(parser, opt):
@@ -156,3 +155,8 @@ def mkdirs(path):
 # save features
 def save_features(feat, filename):
     np.save(filename, feat)
+
+
+def normalize(tensor):
+    # normalize [-1, 1] to [0, 1]
+    return (tensor + 1.) / 2.
