@@ -275,6 +275,8 @@ if opt.visualize_class_label >= 0:
 if opt.cuda:
     netD.cuda()
     netG.cuda()
+    if not opt.use_shared_T:
+        netT.cuda()
     dis_criterion.cuda()
     aux_criterion.cuda()
     input, dis_label, fake_label, eval_label = input.cuda(), dis_label.cuda(), fake_label.cuda(), eval_label.cuda()
