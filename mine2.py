@@ -263,6 +263,15 @@ dis_label = torch.FloatTensor(opt.batchSize)
 real_label_const = 1
 fake_label_const = 0
 
+feature_eval_noises = []
+feature_eval_labels = []
+if opt.feature_save:
+    for i in range(opt.feature_num_batches):
+        z = torch.randn(opt.batchSize, nz, requires_grad=False).cuda()
+        y = torch.LongTensor(opt.batchSize).cuda()
+        feature_eval_noises.append(z.normal_(0, 1))
+        feature_eval_labels.append(y.random_(0, num_classes))
+
 # noise for evaluation
 eval_label_const = 0
 eval_label = torch.LongTensor(opt.batchSize).random_(0, num_classes)
@@ -315,13 +324,23 @@ for epoch in range(opt.niter):
                 eval_x, eval_y = data
                 eval_x = eval_x.cuda()
                 feature_batches.append((eval_x, eval_y))
+            # feature for real
             eval_x, eval_y = feature_batches[feature_batch_counter]
             with torch.no_grad():
                 eval_f = netD.get_feature(eval_x)
             utils.save_features(eval_f.cpu().numpy(),
-                                os.path.join(outff, f'epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
+                                os.path.join(outff, f'real_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
             utils.save_features(eval_y.cpu().numpy(),
-                                os.path.join(outff, f'epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
+                                os.path.join(outff, f'real_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
+            # feature for fake
+            with torch.no_grad():
+                eval_x = netG(feature_eval_noises[feature_batch_counter], feature_eval_labels[feature_batch_counter])
+                eval_y = feature_eval_labels[feature_batch_counter]
+                eval_f = netD.get_feature(eval_x)
+            utils.save_features(eval_f.cpu().numpy(),
+                                os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
+            utils.save_features(eval_y.cpu().numpy(),
+                                os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
 
         ############################
