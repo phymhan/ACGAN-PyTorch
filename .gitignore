@@ -5,3 +5,8 @@ datasets
 results*
 test*
 __pycache__
+*/__pycache__
+*/*/__pycache__
+*.m~
+*/*.m~
+
