@@ -256,12 +256,15 @@ for epoch in range(opt.niter):
         if opt.feature_save and epoch % opt.feature_save_every == 0 and feature_batch_counter < opt.feature_num_batches:
             if len(feature_batches) < opt.feature_num_batches:
                 eval_x, eval_y = data
-                eval_x, eval_y = eval_x.cuda(), eval_y.cuda()
+                eval_x = eval_x.cuda()
                 feature_batches.append((eval_x, eval_y))
             eval_x, eval_y = feature_batches[feature_batch_counter]
             with torch.no_grad():
                 eval_f = netD.get_feature(eval_x)
-            utils.save_features(eval_f.cpu().numpy(), os.path.join(outff, f'epoch_{epoch}_batch_{feature_batch_counter}.npy'))
+            utils.save_features(eval_f.cpu().numpy(),
+                                os.path.join(outff, f'epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
+            utils.save_features(eval_y.cpu().numpy(),
+                                os.path.join(outff, f'epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
 
         ############################
