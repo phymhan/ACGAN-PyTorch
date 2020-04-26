@@ -17,6 +17,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options, set_onehot
+import utils
 from network import _netG, _netD, _netT, _netD_CIFAR10, _netD_SNRes32, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
 from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32, _netDT2_SNResProj32
 from folder import ImageFolder
@@ -82,6 +83,9 @@ parser.add_argument('--lambda_T', type=float, default=0.01)
 parser.add_argument('--lambda_T_decay', type=float, default=0)
 parser.add_argument('--label_rotation', action='store_true')
 parser.add_argument('--disable_cudnn_benchmark', action='store_true')
+parser.add_argument('--feature_save', action='store_true')
+parser.add_argument('--feature_save_every', type=int, default=1)
+parser.add_argument('--feature_num_batches', type=int, default=1)
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -96,6 +100,10 @@ try:
     os.makedirs(opt.outf)
 except OSError:
     pass
+
+outff = os.path.join(opt.outf, 'features')
+if opt.feature_save:
+    utils.mkdirs(outff)
 
 if opt.manualSeed is None:
     opt.manualSeed = random.randint(1, 10000)
@@ -116,7 +124,7 @@ if torch.cuda.is_available() and not opt.cuda:
 
 writer = SummaryWriter(log_dir=opt.outf)
 
-# datase t
+# dataset
 if opt.dataset == 'imagenet':
     # folder dataset
     opt.imageSize = 128
@@ -290,6 +298,7 @@ losses_A = []
 losses_F = []
 losses_IS_mean = []
 losses_IS_std = []
+feature_batches = []
 lambda_T = opt.lambda_T
 hinge = (lambda x: F.relu(1. + x)) if opt.adversarial_T_hinge else (lambda x: x)
 for epoch in range(opt.niter):
@@ -298,7 +307,21 @@ for epoch in range(opt.niter):
     avg_loss_A = AverageMeter()
     avg_loss_IP = AverageMeter()
     avg_loss_IQ = AverageMeter()
+    feature_batch_counter = 0
     for i, data in enumerate(dataloader, 0):
+        # if save_features, save at the beginning of an epoch
+        if opt.feature_save and epoch % opt.feature_save_every == 0 and feature_batch_counter < opt.feature_num_batches:
+            if len(feature_batches) < opt.feature_num_batches:
+                eval_x, eval_y = data
+                eval_x, eval_y = eval_x.cuda(), eval_y.cuda()
+                feature_batches.append((eval_x, eval_y))
+            eval_x, eval_y = feature_batches[feature_batch_counter]
+            with torch.no_grad():
+                eval_f = netD.get_feature(eval_x)
+            utils.save_features(eval_f.cpu().numpy(),
+                                os.path.join(outff, f'epoch_{epoch}_batch_{feature_batch_counter}.npy'))
+            feature_batch_counter += 1
+
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ############################

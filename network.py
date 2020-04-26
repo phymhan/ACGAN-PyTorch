@@ -628,6 +628,16 @@ class _netDT_SNResProj32(nn.Module):
             classes = self.fc_aux(h)
             return realfake, classes
 
+    def get_feature(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        return h
+
 
 class _netDT2_SNResProj32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=True, ac=False, tac=False, dropout=0.,
@@ -781,6 +791,16 @@ class _netDT2_SNResProj32(nn.Module):
             raise RuntimeError
         return output.squeeze(1)
 
+    def get_feature(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        return h
+
 
 class _netD_SNRes32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.):
@@ -821,6 +841,16 @@ class _netD_SNRes32(nn.Module):
             return realfake, classes, classes_twin
         else:
             return realfake, classes
+
+    def get_feature(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        return h
 
 
 # borrowed from https://github.com/crcrpar/pytorch.sngan_projection/blob/master/models/discriminators/snresnet.py
@@ -943,6 +973,16 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if y is not None:
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
         return output.squeeze(1)
+
+    def get_feature(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        return h
 
 
 ## Latent

@@ -146,3 +146,13 @@ class Distribution(torch.Tensor):
         new_obj.init_distribution(self.dist_type, **self.dist_kwargs)
         new_obj.data = super().to(*args, **kwargs)
         return new_obj
+
+
+def mkdirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+# save features
+def save_features(feat, filename):
+    np.save(filename, feat)
