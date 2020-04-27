@@ -381,8 +381,8 @@ for epoch in range(opt.niter):
             accuracy = compute_acc(aux_output, label)
 
         # get fake
-        fake_label.random_(0, num_classes)
-        noise.normal_(0, 1)
+        fake_label.resize_(batch_size).random_(0, num_classes)
+        noise.resize_(batch_size, nz).normal_(0, 1)
         fake = netG(noise, fake_label)
 
         # train with fake
