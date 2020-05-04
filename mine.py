@@ -51,7 +51,7 @@ parser.add_argument('--netT', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
-parser.add_argument('--loss_type', type=str, default='mine', help='[ac | tac | mine]')
+parser.add_argument('--loss_type', type=str, default='mine', help='[mine | eta]')
 parser.add_argument('--visualize_class_label', type=int, default=-1, help='if < 0, random int')
 parser.add_argument('--ma_rate', type=float, default=0.001)
 parser.add_argument('--lambda_mi', type=float, default=1.)
@@ -83,6 +83,7 @@ parser.add_argument('--no_ma_trick', action='store_true')
 parser.add_argument('--tbar_save', action='store_true')
 parser.add_argument('--tbar_save_every', type=int, default=1)
 parser.add_argument('--tbar_num_batches', type=int, default=1)
+parser.add_argument('--no_neg_log_py', action='store_true')
 parser.add_argument('--debug', action='store_true')
 
 opt = parser.parse_args()
@@ -207,7 +208,8 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar
         if opt.netD_model == 'proj32':
             netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout,
                                       sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c,
-                                      init_zero=opt.emb_init_zero, softmax=opt.softmax_T)
+                                      init_zero=opt.emb_init_zero, softmax=opt.softmax_T, eta=opt.loss_type == 'eta',
+                                      no_neg_log_py=opt.no_neg_log_py)
         elif opt.netD_model == 'basic':
             netD = _netDT_CIFAR10(ngpu, num_classes)
             netD.apply(weights_init)
@@ -215,9 +217,9 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar
             raise NotImplementedError
     else:
         if opt.netD_model == 'snres32':
-            netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout)
+            netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=False, dropout=opt.bnn_dropout)
         elif opt.netD_model == 'basic':
-            netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
+            netD = _netD_CIFAR10(ngpu, num_classes, tac=False)
             netD.apply(weights_init)
         else:
             raise NotImplementedError
@@ -393,17 +395,22 @@ for epoch in range(opt.niter):
         y = fake_label
         for _ in range(opt.n_update_mine):
             y_bar = y[torch.randperm(batch_size), ...]
-            if opt.no_ma_trick:
+            if opt.loss_type == 'eta':
                 tbar = netT(fake.detach(), y_bar)
-                tbar_max = tbar.max().detach()
-                log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
-                mi = torch.mean(netT(fake.detach(), y)) - log_mean_exp_tbar
+                t = netT(fake.detach(), y)
+                mi = torch.mean(t) - torch.mean(torch.exp(t)) + 1
             else:
-                et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
-                if netT.ma_et is None:
-                    netT.ma_et = et.detach().item()
-                netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
-                mi = torch.mean(netT(fake.detach(), y)) - torch.log(et + opt.eps) * et.detach() / netT.ma_et
+                if opt.no_ma_trick:
+                    tbar = netT(fake.detach(), y_bar)
+                    tbar_max = tbar.max().detach()
+                    log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
+                    mi = torch.mean(netT(fake.detach(), y)) - log_mean_exp_tbar
+                else:
+                    et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
+                    if netT.ma_et is None:
+                        netT.ma_et = et.detach().item()
+                    netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
+                    mi = torch.mean(netT(fake.detach(), y)) - torch.log(et + opt.eps) * et.detach() / netT.ma_et
             loss_mine = -mi * opt.lambda_mi if opt.weighted_mine_loss else -mi
             optimizerT.zero_grad()
             loss_mine.backward()

@@ -554,15 +554,16 @@ class _netDT_CIFAR10(nn.Module):
 
 class _netDT_SNResProj32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, dropout=0.,
-                 sn_emb_l=True, sn_emb_c=True, init_zero=False, softmax=False):
+                 sn_emb_l=True, sn_emb_c=True, init_zero=False, softmax=False, eta=False, no_neg_log_py=False):
         super(_netDT_SNResProj32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
-        self.use_cy = use_cy
+        self.use_cy = use_cy or eta
         self.init_zero = init_zero
         self.softmax = softmax
-        self.neg_log_py = np.log(self.num_classes)
+        self.neg_log_py = 0. if no_neg_log_py else np.log(self.num_classes)
+        self.use_eta = eta
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -579,6 +580,8 @@ class _netDT_SNResProj32(nn.Module):
                 self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
             if use_cy:
                 self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
+            if self.use_eta:
+                self.eta = utils.spectral_norm(nn.Embedding(1, 1)) if sn_emb_c else nn.Embedding(1, 1)
         self.ma_et = None
 
         # discriminator fc
@@ -616,7 +619,11 @@ class _netDT_SNResProj32(nn.Module):
 
         if y is not None:
             # netT(x, y)
-            cy = self.c_y(y) if self.use_cy else 0.0
+            if self.use_eta:
+                zero = y.clone().fill_(0)
+                cy = -self.eta(zero)
+            else:
+                cy = self.c_y(y) if self.use_cy else 0.0
             if self.softmax:
                 logprob = torch.log_softmax(self.fc_t(h), dim=1)
                 output = logprob[range(y.size(0)), y].view(y.size(0), 1) + cy
