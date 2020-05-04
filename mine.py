@@ -79,6 +79,10 @@ parser.add_argument('--no_ac_on_fake', action='store_true')
 parser.add_argument('--feature_save', action='store_true')
 parser.add_argument('--feature_save_every', type=int, default=1)
 parser.add_argument('--feature_num_batches', type=int, default=1)
+parser.add_argument('--no_ma_trick', action='store_true')
+parser.add_argument('--tbar_save', action='store_true')
+parser.add_argument('--tbar_save_every', type=int, default=1)
+parser.add_argument('--tbar_num_batches', type=int, default=1)
 parser.add_argument('--debug', action='store_true')
 
 opt = parser.parse_args()
@@ -96,6 +100,10 @@ except OSError:
 outff = os.path.join(opt.outf, 'features')
 if opt.feature_save:
     utils.mkdirs(outff)
+
+outft = os.path.join(opt.outf, 'statistics')
+if opt.tbar_save:
+    utils.mkdirs(outft)
 
 if opt.manualSeed is None:
     opt.manualSeed = random.randint(1, 10000)
@@ -174,6 +182,8 @@ ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 num_classes = int(opt.num_classes)
 nc = 3
+
+neg_log_py = np.log(num_classes)
 
 # Define the generator and initialize the weights
 if opt.dataset == 'imagenet':
@@ -307,6 +317,7 @@ for epoch in range(opt.niter):
     avg_loss_A = AverageMeter()
     avg_loss_M = AverageMeter()
     feature_batch_counter = 0
+    tbar_batch_counter = 0
     for i, data in enumerate(dataloader, 0):
         # if save_features, save at the beginning of an epoch
         if opt.feature_save and epoch % opt.feature_save_every == 0 and feature_batch_counter < opt.feature_num_batches:
@@ -332,6 +343,7 @@ for epoch in range(opt.niter):
             utils.save_features(eval_y.cpu().numpy(),
                                 os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
+            continue
 
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -381,15 +393,39 @@ for epoch in range(opt.niter):
         y = fake_label
         for _ in range(opt.n_update_mine):
             y_bar = y[torch.randperm(batch_size), ...]
-            et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
-            if netT.ma_et is None:
-                netT.ma_et = et.detach().item()
-            netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
-            mi = torch.mean(netT(fake.detach(), y)) - torch.log(et+opt.eps) * et.detach() / netT.ma_et
+            if opt.no_ma_trick:
+                tbar = netT(fake.detach(), y_bar)
+                tbar_max = tbar.max().detach()
+                log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
+                mi = torch.mean(netT(fake.detach(), y)) - log_mean_exp_tbar
+            else:
+                et = torch.mean(torch.exp(netT(fake.detach(), y_bar)))
+                if netT.ma_et is None:
+                    netT.ma_et = et.detach().item()
+                netT.ma_et += opt.ma_rate * (et.detach().item() - netT.ma_et)
+                mi = torch.mean(netT(fake.detach(), y)) - torch.log(et + opt.eps) * et.detach() / netT.ma_et
             loss_mine = -mi * opt.lambda_mi if opt.weighted_mine_loss else -mi
             optimizerT.zero_grad()
             loss_mine.backward()
             optimizerT.step()
+
+        if opt.tbar_save and epoch % opt.tbar_save_every == 0 and tbar_batch_counter < opt.tbar_num_batches:
+            # save T, T_bar, mean(T), log_sum_exp(T_bar)
+            with torch.no_grad():
+                t = netT.log_prob(fake.detach(), y)
+                tbar = netT.log_prob(fake.detach(), y_bar)
+                mean_t = torch.mean(t)
+                tbar_max = tbar.max().detach()
+                lse_t = tbar_max + torch.log(torch.sum(torch.exp(tbar - tbar_max)))
+                utils.save_features(t.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_t.npy'))
+                utils.save_features(mean_t.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_meant.npy'))
+                utils.save_features(tbar.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_tbar.npy'))
+                utils.save_features(lse_t.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_lset.npy'))
+            tbar_batch_counter += 1
 
         ############################
         # (3) Update G network: maximize log(D(G(z)))

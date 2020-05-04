@@ -56,7 +56,7 @@ class ImageSampler:
         self.G = G
         self.noise = torch.FloatTensor(opt.samplerBatchSize, opt.nz)
         self.label = torch.LongTensor(opt.samplerBatchSize)
-        self.batchSize = opt.batchSize
+        # self.batchSize = opt.samplerBatchSize
         self.opt = opt
 
     def __iter__(self):
@@ -75,7 +75,10 @@ class ImageSampler:
         # fake = self.G(self.noise.cuda())
         self.noise.normal_(0, 1)
         self.label.random_(0, self.opt.num_classes)
-        return self.G(self.noise.cuda(), self.label.cuda()), self.label
+        with torch.no_grad():
+            fake = self.G(self.noise.cuda(), self.label.cuda())
+            label = self.label
+        return fake, label
 
 
 def print_options(parser, opt):

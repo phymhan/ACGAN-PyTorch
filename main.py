@@ -285,6 +285,7 @@ for epoch in range(opt.niter):
             utils.save_features(eval_y.cpu().numpy(),
                                 os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
+            continue
 
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))

@@ -86,6 +86,7 @@ parser.add_argument('--disable_cudnn_benchmark', action='store_true')
 parser.add_argument('--feature_save', action='store_true')
 parser.add_argument('--feature_save_every', type=int, default=1)
 parser.add_argument('--feature_num_batches', type=int, default=1)
+parser.add_argument('--no_ma_trick', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -345,6 +346,7 @@ for epoch in range(opt.niter):
             utils.save_features(eval_y.cpu().numpy(),
                                 os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
+            continue
 
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))

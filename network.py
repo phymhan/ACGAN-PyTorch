@@ -4,6 +4,7 @@ from torch.nn import utils
 from resblocks import Block, OptimizedBlock
 from torch.nn import init
 import torch.nn.functional as F
+import numpy as np
 import functools
 import pdb
 
@@ -561,6 +562,7 @@ class _netDT_SNResProj32(nn.Module):
         self.use_cy = use_cy
         self.init_zero = init_zero
         self.softmax = softmax
+        self.neg_log_py = np.log(self.num_classes)
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -621,12 +623,29 @@ class _netDT_SNResProj32(nn.Module):
             else:
                 output = self.l5(h)
                 output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
-            return output.squeeze(1)
+            return output.squeeze(1) + self.neg_log_py
         else:
             # netD(x)
             realfake = self.fc_dis(h).squeeze(1)
             classes = self.fc_aux(h)
             return realfake, classes
+
+    def log_prob(self, x, y):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        if self.softmax:
+            logprob = torch.log_softmax(self.fc_t(h), dim=1)
+            output = logprob[range(y.size(0)), y].view(y.size(0), 1)
+        else:
+            output = self.l5(h)
+            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
+        return output.squeeze(1)
 
     def get_feature(self, x):
         h = self.block1(x)
@@ -652,6 +671,7 @@ class _netDT2_SNResProj32(nn.Module):
         self.init_zero = init_zero
         self.softmax = softmax
         self.projection = projection
+        self.neg_log_py = np.log(self.num_classes)
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -750,7 +770,7 @@ class _netDT2_SNResProj32(nn.Module):
                     output += torch.sum(self.l_y_Q(y) * h, dim=1, keepdim=True) + cy
             else:
                 raise RuntimeError
-            return output.squeeze(1)
+            return output.squeeze(1) + self.neg_log_py
         elif y is not None:
             # netD(x, y)
             realfake = self.fc_dis(h)

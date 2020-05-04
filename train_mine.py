@@ -24,6 +24,7 @@ from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
 from inception import prepare_inception_metrics, prepare_data_statistics
 import torch.nn.functional as F
+import utils
 import pdb
 
 parser = argparse.ArgumentParser()
@@ -59,7 +60,9 @@ parser.add_argument('--weighted_mine_loss', action='store_true', default=False)
 parser.add_argument('--label_rotation', action='store_true')
 parser.add_argument('--eps', type=float, default=0., help='eps added in log')
 parser.add_argument('--no_ma_trick', action='store_true')
-parser.add_argument('--use_softmax_trick', action='store_true')
+parser.add_argument('--tbar_save', action='store_true')
+parser.add_argument('--tbar_save_every', type=int, default=1)
+parser.add_argument('--tbar_num_batches', type=int, default=1)
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -72,6 +75,10 @@ try:
     os.makedirs(opt.outf)
 except OSError:
     pass
+
+outft = os.path.join(opt.outf, 'statistics')
+if opt.tbar_save:
+    utils.mkdirs(outft)
 
 if opt.manualSeed is None:
     opt.manualSeed = random.randint(1, 10000)
@@ -163,6 +170,7 @@ losses_M = []
 
 for epoch in range(opt.niter):
     avg_loss_M = AverageMeter()
+    tbar_batch_counter = 0
     for i, data in enumerate(dataloader, 0):
         netD.zero_grad()
         real_cpu, label = data
@@ -177,14 +185,10 @@ for epoch in range(opt.niter):
         y_bar = y[torch.randperm(batch_size), ...]
 
         if opt.no_ma_trick:
-            if opt.use_softmax_trick:
-                tbar = netD(input, y_bar)
-                tbar_max = tbar.max().detach()
-                log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
-                mi = torch.mean(netD(input, y)) - log_mean_exp_tbar
-            else:
-                et = torch.mean(torch.exp(netD(input, y_bar)))
-                mi = torch.mean(netD(input, y)) - torch.log(et+1e-8)
+            tbar = netD(input, y_bar)
+            tbar_max = tbar.max().detach()
+            log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
+            mi = torch.mean(netD(input, y)) - log_mean_exp_tbar
         else:
             # use ma trick
             et = torch.mean(torch.exp(netD(input, y_bar)))
@@ -194,6 +198,24 @@ for epoch in range(opt.niter):
             mi = torch.mean(netD(input, y)) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
         (-mi).backward()
         optimizerD.step()
+
+        if opt.tbar_save and epoch % opt.tbar_save_every == 0 and tbar_batch_counter < opt.tbar_num_batches:
+            # save T, T_bar, mean(T), log_sum_exp(T_bar)
+            with torch.no_grad():
+                t = netD.log_prob(input, y)
+                tbar = netD.log_prob(input, y_bar)
+                mean_t = torch.mean(t)
+                tbar_max = tbar.max().detach()
+                lse_t = tbar_max + torch.log(torch.sum(torch.exp(tbar - tbar_max)))
+                utils.save_features(t.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_t.npy'))
+                utils.save_features(mean_t.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_meant.npy'))
+                utils.save_features(tbar.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_tbar.npy'))
+                utils.save_features(lse_t.cpu().numpy(),
+                                    os.path.join(outft, f'fake_epoch_{epoch}_batch_{tbar_batch_counter}_lset.npy'))
+            tbar_batch_counter += 1
 
         # compute the average loss
         avg_loss_M.update(mi.item(), batch_size)
