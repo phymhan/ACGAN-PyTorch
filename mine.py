@@ -396,9 +396,7 @@ for epoch in range(opt.niter):
         for _ in range(opt.n_update_mine):
             y_bar = y[torch.randperm(batch_size), ...]
             if opt.loss_type == 'eta':
-                tbar = netT(fake.detach(), y_bar)
-                t = netT(fake.detach(), y)
-                mi = torch.mean(t) - torch.mean(torch.exp(t)) + 1
+                mi = torch.mean(netT(fake.detach(), y)) - torch.mean(torch.exp(netT(fake.detach(), y_bar))) + 1
             else:
                 if opt.no_ma_trick:
                     tbar = netT(fake.detach(), y_bar)
