@@ -45,6 +45,7 @@ parser.add_argument('--netT', default='', help="path to netD (to continue traini
 parser.add_argument('--outf', default='results', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes for AC-GAN')
+parser.add_argument('--loss_type', type=str, default='mine', help='[mine | eta]')
 parser.add_argument('--ma_rate', type=float, default=0.001)
 parser.add_argument('--download_dset', action='store_true')
 parser.add_argument('--use_cy', action='store_true')
@@ -63,6 +64,7 @@ parser.add_argument('--no_ma_trick', action='store_true')
 parser.add_argument('--tbar_save', action='store_true')
 parser.add_argument('--tbar_save_every', type=int, default=1)
 parser.add_argument('--tbar_num_batches', type=int, default=1)
+parser.add_argument('--no_neg_log_py', action='store_true')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -143,7 +145,8 @@ if opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar10
     if opt.netD_model == 'proj32':
         netD = _netDT_SNResProj32(opt.ndf, opt.num_classes, use_cy=opt.use_cy, dropout=opt.bnn_dropout,
                                   sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c,
-                                  init_zero=opt.emb_init_zero, softmax=opt.softmax_T)
+                                  init_zero=opt.emb_init_zero, softmax=opt.softmax_T, eta=opt.loss_type == 'eta',
+                                  no_neg_log_py=opt.no_neg_log_py)
     else:
         raise NotImplementedError
 else:
@@ -184,18 +187,21 @@ for epoch in range(opt.niter):
         y = label
         y_bar = y[torch.randperm(batch_size), ...]
 
-        if opt.no_ma_trick:
-            tbar = netD(input, y_bar)
-            tbar_max = tbar.max().detach()
-            log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
-            mi = torch.mean(netD(input, y)) - log_mean_exp_tbar
+        if opt.loss_type == 'eta':
+            mi = torch.mean(netD(input, y)) - torch.mean(torch.exp(netD(input, y_bar))) + 1
         else:
-            # use ma trick
-            et = torch.mean(torch.exp(netD(input, y_bar)))
-            if netD.ma_et is None:
-                netD.ma_et = et.detach().item()
-            netD.ma_et += opt.ma_rate * (et.detach().item() - netD.ma_et)
-            mi = torch.mean(netD(input, y)) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
+            if opt.no_ma_trick:
+                tbar = netD(input, y_bar)
+                tbar_max = tbar.max().detach()
+                log_mean_exp_tbar = tbar_max + torch.log(torch.mean(torch.exp(tbar - tbar_max)))
+                mi = torch.mean(netD(input, y)) - log_mean_exp_tbar
+            else:
+                # use ma trick
+                et = torch.mean(torch.exp(netD(input, y_bar)))
+                if netD.ma_et is None:
+                    netD.ma_et = et.detach().item()
+                netD.ma_et += opt.ma_rate * (et.detach().item() - netD.ma_et)
+                mi = torch.mean(netD(input, y)) - torch.log(et + 1e-8) * et.detach() / netD.ma_et
         (-mi).backward()
         optimizerD.step()
 
