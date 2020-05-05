@@ -830,12 +830,15 @@ class _netDT2_SNResProj32(nn.Module):
 
 
 class _netD_SNRes32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.,
+                 use_proj=False, detach_ac=False):
         super(_netD_SNRes32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.tac = tac
+        self.use_proj = use_proj
+        self.detach_ac = detach_ac
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -844,13 +847,17 @@ class _netD_SNRes32(nn.Module):
                             activation=activation, downsample=True, dropout=dropout)
         self.block4 = Block(num_features * 4, num_features * 8,
                             activation=activation, downsample=True, dropout=dropout)
+        if self.use_proj:
+            self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+            self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
+            self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
 
         # discriminator fc
-        self.fc_dis = utils.spectral_norm(nn.Linear(1 * 1 * 512, 1))
+        self.fc_dis = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         # aux-classifier fc
-        self.fc_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+        self.fc_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         # twin aux-classifier fc
-        self.tac_aux = utils.spectral_norm(nn.Linear(1 * 1 * 512, num_classes))
+        self.tac_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
 
     def forward(self, x):
         h = self.block1(x)
@@ -944,12 +951,15 @@ class SNResNetProjectionDiscriminator64(nn.Module):
 
 
 class SNResNetProjectionDiscriminator32(nn.Module):
-    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True,
+                 use_ac=False, detach_ac=False):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
         self.activation = activation
         self.use_cy = use_cy
+        self.use_ac = use_ac
+        self.detach_ac = detach_ac
 
         self.block1 = OptimizedBlock(3, num_features)
         self.block2 = Block(num_features, num_features * 2,
@@ -962,6 +972,8 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if num_classes > 0:
             self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
             self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
+        if self.use_ac:
+            self.fc_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         self.ma_et = None
         self.ma_et_P = None
         self.ma_et_Q = None
@@ -986,6 +998,9 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if y is not None:
             cy = self.c_y(y) if self.use_cy else 0.0
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
+        if self.use_ac:
+            classes = self.fc_aux(h.detach()) if self.detach_ac else self.fc_aux(h)
+            return output.squeeze(1), classes
         return output.squeeze(1)
 
     def log_prob(self, x, y, distribution='P'):
