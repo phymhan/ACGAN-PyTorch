@@ -64,6 +64,8 @@ parser.add_argument('--feature_save', action='store_true')
 parser.add_argument('--feature_save_every', type=int, default=1)
 parser.add_argument('--feature_num_batches', type=int, default=1)
 parser.add_argument('--detach_ac', action='store_true')
+parser.add_argument('--dis_fc_dim', type=int, nargs='*', default=[1], help='cnn kernel dims for dis_fc')
+parser.add_argument('--store_linear', action='store_true')
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -77,7 +79,7 @@ except OSError:
     pass
 
 outff = os.path.join(opt.outf, 'features')
-if opt.feature_save:
+if opt.feature_save or opt.store_linear:
     utils.mkdirs(outff)
 
 if opt.manualSeed is None:
@@ -178,16 +180,15 @@ if opt.dataset == 'imagenet':
     netD = _netD(ngpu, num_classes, tac=opt.loss_type == 'tac')
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
     if opt.loss_type == 'cgan':
-        if opt.netD_model == 'snres32':
-            netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False)
-        else:
-            raise NotImplementedError
+        netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False,
+                                                 dis_fc_dim=opt.dis_fc_dim)
     elif opt.loss_type == 'cgan+ac':
         netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False,
-                                                 use_ac=True, detach_ac=opt.detach_ac)
+                                                 use_ac=True, detach_ac=opt.detach_ac, dis_fc_dim=opt.dis_fc_dim)
     elif opt.loss_type == 'gan':
         if opt.netD_model == 'snres32':
-            netD = SNResNetProjectionDiscriminator32(opt.ndf, 0, use_cy=False)
+            netD = SNResNetProjectionDiscriminator32(opt.ndf, 0, use_cy=False, dis_fc_dim=opt.dis_fc_dim)
+            # netD.apply(weights_init)
         else:
             raise NotImplementedError
     else:
@@ -429,6 +430,12 @@ for epoch in range(opt.niter):
     # compute metrics
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
                                        prints=True, use_torch=False)
+    if opt.store_linear:
+        v_y = netD.get_v_y()
+        np.save(os.path.join(outff, f'v_epoch_{epoch}.npy'), v_y)
+        v_psi = netD.get_v_psi()
+        if v_psi is not None:
+            np.save(os.path.join(outff, f'psi_epoch_{epoch}.npy'), v_psi)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
     writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)

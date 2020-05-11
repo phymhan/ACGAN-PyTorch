@@ -1,11 +1,11 @@
-function plot_feature(model, ep, nbatch)
+function plot_feature(model, ep)
 
-result = 'results_feat';
-cifar = 'cifar100_bs2048';
+result = 'results_rep';
+cifar = 'cifar10';
 % model = 'tac+naof';
 % ep = 14;
-% nbatch = 1;
-bs = 2048;
+nbatch = 4;
+bs = 256;
 
 f_fake = [];
 y_fake = [];
@@ -47,4 +47,4 @@ subplot(2, 2, 4)
 gscatter(f2_fake(:,1), f2_fake(:,2), y_real)
 title('cls fake');
 
-set(gcf, 'position', [800         100        2250        1750])
+set(gcf, 'position', [800         100        1000        1000])

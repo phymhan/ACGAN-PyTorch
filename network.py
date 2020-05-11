@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import numpy as np
 import functools
 import pdb
+from utils import weights_init
 
 
 # Identity mapping
@@ -952,7 +953,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
 
 class SNResNetProjectionDiscriminator32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True,
-                 use_ac=False, detach_ac=False):
+                 use_ac=False, detach_ac=False, dis_fc_dim=[1]):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -968,7 +969,19 @@ class SNResNetProjectionDiscriminator32(nn.Module):
                             activation=activation, downsample=True)
         self.block4 = Block(num_features * 4, num_features * 8,
                             activation=activation, downsample=True)
-        self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        fc_blocks = []
+        nf_prev = num_features * 8
+        for i in range(len(dis_fc_dim) - 1):
+            nf = dis_fc_dim[i]
+            fc_blocks += [
+                utils.spectral_norm(nn.Linear(nf_prev, nf)),
+                nn.ReLU()]
+            nf_prev = nf
+        if len(dis_fc_dim) > 0:
+            fc_blocks += [
+                utils.spectral_norm(nn.Linear(nf_prev, dis_fc_dim[-1])),
+            ]
+        self.l5 = nn.Sequential(*fc_blocks) if len(dis_fc_dim) > 0 else None
         if num_classes > 0:
             self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
             self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
@@ -980,7 +993,9 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         self._initialize()
 
     def _initialize(self):
-        init.xavier_uniform_(self.l5.weight.data)
+        # init.xavier_uniform_(self.l5.weight.data)
+        if self.l5 is not None:
+            self.l5.apply(weights_init)
         optional_l_y = getattr(self, 'l_y', None)
         if optional_l_y is not None:
             init.xavier_uniform_(optional_l_y.weight.data)
@@ -994,7 +1009,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         h = self.activation(h)
         # Global pooling
         h = torch.sum(h, dim=(2, 3))
-        output = self.l5(h)
+        output = self.l5(h) if self.l5 is not None else 0.
         if y is not None:
             cy = self.c_y(y) if self.use_cy else 0.0
             output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
@@ -1025,6 +1040,13 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         # Global pooling
         h = torch.sum(h, dim=(2, 3))
         return h
+
+    def get_v_y(self):
+        return self.l_y.weight.data.clone().cpu().numpy()
+
+    def get_v_psi(self):
+        # this is only for a single-layer linear psi
+        return self.l5[-1].weight.data.clone().cpu().numpy() if self.l5 is not None else None
 
 
 ## Latent
