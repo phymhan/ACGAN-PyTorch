@@ -1,6 +1,6 @@
 function plot_feature(model, ep)
 
-result = 'results_rep';
+result = 'results_psi';
 cifar = 'cifar10';
 % model = 'tac+naof';
 % ep = 14;

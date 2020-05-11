@@ -832,7 +832,7 @@ class _netDT2_SNResProj32(nn.Module):
 
 class _netD_SNRes32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.,
-                 use_proj=False, detach_ac=False, dis_fc_dim=[1]):
+                 use_proj=False, detach_ac=False, dis_fc_dim=[1], dis_fc_activation='relu'):
         super(_netD_SNRes32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -840,6 +840,11 @@ class _netD_SNRes32(nn.Module):
         self.tac = tac
         self.use_proj = use_proj
         self.detach_ac = detach_ac
+        fc_activation = nn.ReLU
+        if dis_fc_activation == 'tanh':
+            fc_activation = nn.Tanh
+        elif dis_fc_activation == 'relu':
+            fc_activation = nn.ReLU
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -860,7 +865,7 @@ class _netD_SNRes32(nn.Module):
             nf = dis_fc_dim[i]
             fc_blocks += [
                 utils.spectral_norm(nn.Linear(nf_prev, nf)),
-                nn.ReLU()]
+                fc_activation()]
             nf_prev = nf
         if len(dis_fc_dim) > 0:
             fc_blocks += [
@@ -965,7 +970,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
 
 class SNResNetProjectionDiscriminator32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True,
-                 use_ac=False, detach_ac=False, dis_fc_dim=[1]):
+                 use_ac=False, detach_ac=False, dis_fc_dim=[1], dis_fc_activation='relu'):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -981,13 +986,18 @@ class SNResNetProjectionDiscriminator32(nn.Module):
                             activation=activation, downsample=True)
         self.block4 = Block(num_features * 4, num_features * 8,
                             activation=activation, downsample=True)
+        fc_activation = nn.ReLU
+        if dis_fc_activation == 'tanh':
+            fc_activation = nn.Tanh
+        elif dis_fc_activation == 'relu':
+            fc_activation = nn.ReLU
         fc_blocks = []
         nf_prev = num_features * 8
         for i in range(len(dis_fc_dim) - 1):
             nf = dis_fc_dim[i]
             fc_blocks += [
                 utils.spectral_norm(nn.Linear(nf_prev, nf)),
-                nn.ReLU()]
+                fc_activation()]
             nf_prev = nf
         if len(dis_fc_dim) > 0:
             fc_blocks += [
