@@ -194,7 +194,8 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar
     else:
         # loss_type == 'ac' or loss_type == 'tac'
         if opt.netD_model == 'snres32':
-            netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout)
+            netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout,
+                                 dis_fc_dim=opt.dis_fc_dim)
             netD.apply(weights_init)
         elif opt.netD_model == 'basic':
             netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')

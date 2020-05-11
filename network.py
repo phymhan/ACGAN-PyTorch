@@ -832,7 +832,7 @@ class _netDT2_SNResProj32(nn.Module):
 
 class _netD_SNRes32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, tac=False, dropout=0.,
-                 use_proj=False, detach_ac=False):
+                 use_proj=False, detach_ac=False, dis_fc_dim=[1]):
         super(_netD_SNRes32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -854,7 +854,19 @@ class _netD_SNRes32(nn.Module):
             self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
 
         # discriminator fc
-        self.fc_dis = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        fc_blocks = []
+        nf_prev = num_features * 8
+        for i in range(len(dis_fc_dim) - 1):
+            nf = dis_fc_dim[i]
+            fc_blocks += [
+                utils.spectral_norm(nn.Linear(nf_prev, nf)),
+                nn.ReLU()]
+            nf_prev = nf
+        if len(dis_fc_dim) > 0:
+            fc_blocks += [
+                utils.spectral_norm(nn.Linear(nf_prev, dis_fc_dim[-1])),
+            ]
+        self.fc_dis = nn.Sequential(*fc_blocks) if len(dis_fc_dim) > 0 else None
         # aux-classifier fc
         self.fc_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         # twin aux-classifier fc
