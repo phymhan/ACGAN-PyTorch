@@ -1,11 +1,19 @@
-function plot_feature(model, ep)
+function plot_feature(result, cifar, model, ep, bs, nbatch)
+% function plot_feature(model, ep, result, cifar, nbatch, bs)
 
-result = 'results_psi';
-cifar = 'cifar10';
+if nargin < 6
+    nbatch = 4;
+end
+if nargin < 5
+    bs = 256;
+end
+
+% result = 'results_rep';
+% cifar = 'cifar10';
 % model = 'tac+naof';
 % ep = 14;
-nbatch = 4;
-bs = 256;
+% nbatch = 4;
+% bs = 256;
 
 f_fake = [];
 y_fake = [];

@@ -273,28 +273,27 @@ for epoch in range(opt.niter):
     for i, data in enumerate(dataloader, 0):
         # if save_features, save at the beginning of an epoch
         if opt.feature_save and epoch % opt.feature_save_every == 0 and feature_batch_counter < opt.feature_num_batches:
-            if len(feature_batches) < opt.feature_num_batches:
-                eval_x, eval_y = data
-                eval_x = eval_x.cuda()
-                feature_batches.append((eval_x, eval_y))
-            # feature for real
-            eval_x, eval_y = feature_batches[feature_batch_counter]
             with torch.no_grad():
+                if len(feature_batches) < opt.feature_num_batches:
+                    eval_x, eval_y = data
+                    eval_x = eval_x.cuda()
+                    feature_batches.append((eval_x, eval_y))
+                # feature for real
+                eval_x, eval_y = feature_batches[feature_batch_counter]
                 eval_f = netD.get_feature(eval_x)
-            utils.save_features(eval_f.cpu().numpy(),
-                                os.path.join(outff, f'real_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
-            utils.save_features(eval_y.cpu().numpy(),
-                                os.path.join(outff, f'real_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
-            # feature for fake
-            with torch.no_grad():
+                utils.save_features(eval_f.cpu().numpy(),
+                                    os.path.join(outff, f'real_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
+                utils.save_features(eval_y.cpu().numpy(),
+                                    os.path.join(outff, f'real_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
+                # feature for fake
                 eval_x = netG(feature_eval_noises[feature_batch_counter], feature_eval_labels[feature_batch_counter])
                 eval_y = feature_eval_labels[feature_batch_counter]
                 eval_f = netD.get_feature(eval_x)
-            utils.save_features(eval_f.cpu().numpy(),
-                                os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
-            utils.save_features(eval_y.cpu().numpy(),
-                                os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
-            feature_batch_counter += 1
+                utils.save_features(eval_f.cpu().numpy(),
+                                    os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
+                utils.save_features(eval_y.cpu().numpy(),
+                                    os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
+                feature_batch_counter += 1
             continue
 
         ############################
