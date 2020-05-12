@@ -67,6 +67,7 @@ parser.add_argument('--detach_ac', action='store_true')
 parser.add_argument('--dis_fc_dim', type=int, nargs='*', default=[1], help='cnn kernel dims for dis_fc')
 parser.add_argument('--dis_fc_activation', type=str, default='relu')
 parser.add_argument('--store_linear', action='store_true')
+parser.add_argument('--sample_trunc_normal', action='store_true')
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -228,10 +229,12 @@ feature_eval_noises = []
 feature_eval_labels = []
 if opt.feature_save:
     for i in range(opt.feature_num_batches):
-        z = torch.randn(opt.batchSize, nz, requires_grad=False).cuda()
-        y = torch.LongTensor(opt.batchSize).cuda()
-        feature_eval_noises.append(z.normal_(0, 1))
-        feature_eval_labels.append(y.random_(0, num_classes))
+        z = torch.randn(opt.batchSize, nz, requires_grad=False).normal_(0, 1)
+        y = torch.LongTensor(opt.batchSize).random_(0, num_classes)
+        if opt.sample_trunc_normal:
+            utils.truncated_normal_(z, 0, 1)
+        feature_eval_noises.append(z.cuda())
+        feature_eval_labels.append(y.cuda())
 
 # noise for evaluation
 eval_label_const = 0
@@ -293,7 +296,7 @@ for epoch in range(opt.niter):
                                     os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_f.npy'))
                 utils.save_features(eval_y.cpu().numpy(),
                                     os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
-                feature_batch_counter += 1
+            feature_batch_counter += 1
             continue
 
         ############################

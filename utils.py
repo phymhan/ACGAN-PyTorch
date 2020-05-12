@@ -166,3 +166,14 @@ def save_features(feat, filename):
 def normalize(tensor):
     # normalize [-1, 1] to [0, 1]
     return (tensor + 1.) / 2.
+
+
+# borrow from https://discuss.pytorch.org/t/implementing-truncated-normal-initializer/4778/19 @ruotianluo
+def truncated_normal_(tensor, mean=0, std=1):
+    size = tensor.shape
+    tmp = tensor.new_empty(size + (4,)).normal_()
+    valid = (tmp < 2) & (tmp > -2)
+    ind = valid.max(-1, keepdim=True)[1]
+    tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+    tensor.data.mul_(std).add_(mean)
+    return tensor
