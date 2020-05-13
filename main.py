@@ -68,6 +68,7 @@ parser.add_argument('--dis_fc_dim', type=int, nargs='*', default=[1], help='cnn 
 parser.add_argument('--dis_fc_activation', type=str, default='relu')
 parser.add_argument('--store_linear', action='store_true')
 parser.add_argument('--sample_trunc_normal', action='store_true')
+parser.add_argument('--separate', action='store_true')
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -312,7 +313,10 @@ for epoch in range(opt.niter):
             input.resize_as_(real_cpu).copy_(real_cpu)
             dis_label.resize_(batch_size).fill_(real_label_const)
         if opt.loss_type == 'cgan':
-            dis_output = netD(input, label)
+            if opt.separate:
+                aux_output, dis_output = netD(input, label, separate=True)
+            else:
+                dis_output = netD(input, label)
         elif opt.loss_type == 'gan':
             dis_output = netD(input)
         elif opt.loss_type == 'tac':
@@ -326,6 +330,8 @@ for epoch in range(opt.niter):
         dis_errD_real = dis_criterion(dis_output, dis_label)
         if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
             aux_errD_real = 0.
+            if opt.separate:
+                aux_errD_real = dis_criterion(aux_output, dis_label)
         else:
             aux_errD_real = aux_criterion(aux_output, label)
         errD_real = dis_errD_real + aux_errD_real
@@ -346,7 +352,10 @@ for epoch in range(opt.niter):
         # train with fake
         dis_label.resize_(batch_size).fill_(fake_label_const)
         if opt.loss_type == 'cgan':
-            dis_output = netD(fake.detach(), fake_label)
+            if opt.separate:
+                aux_output, dis_output = netD(fake.detach(), fake_label, separate=True)
+            else:
+                dis_output = netD(fake.detach(), fake_label)
             tac_errD_fake = 0.
         elif opt.loss_type == 'gan':
             dis_output = netD(fake.detach())
@@ -367,6 +376,8 @@ for epoch in range(opt.niter):
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         if (opt.loss_type == 'cgan' or opt.loss_type == 'gan') or opt.no_ac_on_fake:
             aux_errD_fake = 0.
+            if opt.separate:
+                aux_errD_fake = dis_criterion(aux_output, dis_label)
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
         errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake

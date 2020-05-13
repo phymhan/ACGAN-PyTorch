@@ -970,7 +970,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
 
 class SNResNetProjectionDiscriminator32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True,
-                 use_ac=False, detach_ac=False, dis_fc_dim=[1], dis_fc_activation='relu'):
+                 use_ac=False, detach_ac=False, dis_fc_dim=[1], dis_fc_activation='relu', separate_v_psi=False):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -1022,7 +1022,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         if optional_l_y is not None:
             init.xavier_uniform_(optional_l_y.weight.data)
 
-    def forward(self, x, y=None, distribution='P'):
+    def forward(self, x, y=None, separate=False):
         h = x
         h = self.block1(h)
         h = self.block2(h)
@@ -1034,7 +1034,10 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         output = self.l5(h) if self.l5 is not None else 0.
         if y is not None:
             cy = self.c_y(y) if self.use_cy else 0.0
-            output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
+            if separate:
+                return torch.sum(self.l_y(y) * h, dim=1, keepdim=True).squeeze(1), output.squeeze(1)
+            else:
+                output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
         if self.use_ac:
             classes = self.fc_aux(h.detach()) if self.detach_ac else self.fc_aux(h)
             return output.squeeze(1), classes
