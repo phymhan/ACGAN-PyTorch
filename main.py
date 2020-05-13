@@ -448,11 +448,10 @@ for epoch in range(opt.niter):
     is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
                                        prints=True, use_torch=False)
     if opt.store_linear:
-        v_y = netD.get_v_y()
-        np.save(os.path.join(outff, f'v_epoch_{epoch}.npy'), v_y)
-        v_psi = netD.get_v_psi()
-        if v_psi is not None:
-            np.save(os.path.join(outff, f'psi_epoch_{epoch}.npy'), v_psi)
+        names = netD.get_linear_name()
+        params = netD.get_linear()
+        for (name, param) in zip(netD.get_linear_name(), netD.get_linear()):
+            np.save(os.path.join(outff, f'{name}_epoch_{epoch}.npy'), param)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
     writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)

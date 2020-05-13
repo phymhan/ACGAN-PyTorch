@@ -1073,6 +1073,18 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         # this is only for a single-layer linear psi
         return self.l5[-1].weight.data.clone().cpu().numpy() if self.l5 is not None else None
 
+    def get_linear_name(self):
+        return ['l5', 'l_y', 'fc_aux']
+
+    def get_linear(self):
+        params = []
+        for param in self.get_linear_name():
+            param = getattr(self, param, None)
+            if isinstance(param, nn.Sequential):
+                param = param[-1]
+            params.append(param.weight.data.clone().cpu().numpy())
+        return params
+
 
 ## Latent
 class EmbeddingNet(nn.Module):
@@ -1222,5 +1234,7 @@ class HybridNetD(nn.Module):
         params = []
         for param in self.get_linear_name():
             param = getattr(self, param, None)
+            if isinstance(param, nn.Sequential):
+                param = param[-1]
             params.append(param.weight.data.clone().cpu().numpy())
         return params
