@@ -1203,7 +1203,7 @@ class HybridNetD(nn.Module):
         ac = self.fc_ac(h.detach()) if detach else self.fc_ac(h)
         tac = self.fc_tac(h.detach()) if detach else self.fc_tac(h)
 
-        return vy.squeeze(1), psi, dis, ac, tac
+        return vy, psi, dis, ac, tac
 
     def get_feature(self, x):
         h = self.block1(x)
