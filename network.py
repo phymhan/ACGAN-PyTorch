@@ -1163,3 +1163,64 @@ class ReconstructorSiamese(nn.Module):
         classes = self.fc_class(torch.cat((h1, h2), dim=1))
         shifted = self.fc_shift(h2) - self.fc_shift(h1)
         return classes, shifted
+
+
+class HybridNetD(nn.Module):
+    def __init__(self, num_features=64, num_classes=0, activation=F.relu):
+        super(HybridNetD, self).__init__()
+        self.num_features = num_features
+        self.num_classes = num_classes
+        self.activation = activation
+
+        self.block1 = OptimizedBlock(3, num_features)
+        self.block2 = Block(num_features, num_features * 2,
+                            activation=activation, downsample=True)
+        self.block3 = Block(num_features * 2, num_features * 4,
+                            activation=activation, downsample=True)
+        self.block4 = Block(num_features * 4, num_features * 8,
+                            activation=activation, downsample=True)
+        self.fc_psi = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
+
+        self.fc_dis = utils.spectral_norm(nn.Linear(num_features * 8, 1))
+        self.fc_ac = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
+        self.fc_tac = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
+
+    def forward(self, x, y, detach=False):
+        h = x
+        h = self.block1(h)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+
+        psi = self.fc_psi(h)
+        vy = torch.sum(self.l_y(y) * h, dim=1, keepdim=True)
+
+        dis = self.fc_dis(h.detach()) if detach else self.fc_dis(h)
+        ac = self.fc_ac(h.detach()) if detach else self.fc_ac(h)
+        tac = self.fc_tac(h.detach()) if detach else self.fc_tac(h)
+
+        return vy.squeeze(1), psi, dis, ac, tac
+
+    def get_feature(self, x):
+        h = self.block1(x)
+        h = self.block2(h)
+        h = self.block3(h)
+        h = self.block4(h)
+        h = self.activation(h)
+        # Global pooling
+        h = torch.sum(h, dim=(2, 3))
+        return h
+
+    def get_linear_name(self):
+        return ['fc_psi', 'l_y', 'fc_dis', 'fc_ac', 'fc_tac']
+
+    def get_linear(self):
+        params = []
+        for param in self.get_linear_name():
+            param = getattr(self, param, None)
+            params.append(param.weight.data.clone().cpu().numpy())
+        return params
