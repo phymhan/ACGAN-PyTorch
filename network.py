@@ -1082,7 +1082,8 @@ class SNResNetProjectionDiscriminator32(nn.Module):
             param = getattr(self, param, None)
             if isinstance(param, nn.Sequential):
                 param = param[-1]
-            params.append(param.weight.data.clone().cpu().numpy())
+            if param is not None:
+                params.append(param.weight.data.clone().cpu().numpy())
         return params
 
 

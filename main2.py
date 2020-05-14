@@ -359,7 +359,8 @@ for epoch in range(opt.niter):
         names = netD.get_linear_name()
         params = netD.get_linear()
         for (name, param) in zip(netD.get_linear_name(), netD.get_linear()):
-            np.save(os.path.join(outff, f'{name}_epoch_{epoch}.npy'), param)
+            if param is not None:
+                np.save(os.path.join(outff, f'{name}_epoch_{epoch}.npy'), param)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
     writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
