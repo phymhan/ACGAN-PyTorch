@@ -970,7 +970,7 @@ class SNResNetProjectionDiscriminator64(nn.Module):
 
 class SNResNetProjectionDiscriminator32(nn.Module):
     def __init__(self, num_features=64, num_classes=0, activation=F.relu, use_cy=False, sn_emb_l=True, sn_emb_c=True,
-                 use_ac=False, detach_ac=False, dis_fc_dim=[1], dis_fc_activation='relu', separate_v_psi=False):
+                 use_ac=False, detach_ac=False, dis_fc_dim=[1], dis_fc_activation='relu', linear_no_sn=False):
         super(SNResNetProjectionDiscriminator32, self).__init__()
         self.num_features = num_features
         self.num_classes = num_classes
@@ -996,12 +996,12 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         for i in range(len(dis_fc_dim) - 1):
             nf = dis_fc_dim[i]
             fc_blocks += [
-                utils.spectral_norm(nn.Linear(nf_prev, nf)),
+                utils.spectral_norm(nn.Linear(nf_prev, nf)) if not linear_no_sn else nn.Linear(nf_prev, nf),
                 fc_activation()]
             nf_prev = nf
         if len(dis_fc_dim) > 0:
             fc_blocks += [
-                utils.spectral_norm(nn.Linear(nf_prev, dis_fc_dim[-1])),
+                utils.spectral_norm(nn.Linear(nf_prev, dis_fc_dim[-1])) if not linear_no_sn else nn.Linear(nf_prev, dis_fc_dim[-1]),
             ]
         self.l5 = nn.Sequential(*fc_blocks) if len(dis_fc_dim) > 0 else None
         if num_classes > 0:

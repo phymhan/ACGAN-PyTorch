@@ -65,10 +65,11 @@ parser.add_argument('--feature_save_every', type=int, default=1)
 parser.add_argument('--feature_num_batches', type=int, default=1)
 parser.add_argument('--detach_ac', action='store_true')
 parser.add_argument('--dis_fc_dim', type=int, nargs='*', default=[1], help='cnn kernel dims for dis_fc')
-parser.add_argument('--dis_fc_activation', type=str, default='relu')
+parser.add_argument('--dis_fc_activation', type=str, default='tanh')
 parser.add_argument('--store_linear', action='store_true')
 parser.add_argument('--sample_trunc_normal', action='store_true')
 parser.add_argument('--separate', action='store_true')
+parser.add_argument('--linear_no_sn', action='store_true')
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -184,15 +185,18 @@ if opt.dataset == 'imagenet':
 elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar100':
     if opt.loss_type == 'cgan':
         netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False,
-                                                 dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation)
+                                                 dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation,
+                                                 linear_no_sn=opt.linear_no_sn)
     elif opt.loss_type == 'cgan+ac':
         netD = SNResNetProjectionDiscriminator32(opt.ndf, opt.num_classes, use_cy=False,
                                                  use_ac=True, detach_ac=opt.detach_ac,
-                                                 dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation)
+                                                 dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation,
+                                                 linear_no_sn=opt.linear_no_sn)
     elif opt.loss_type == 'gan':
         if opt.netD_model == 'snres32':
             netD = SNResNetProjectionDiscriminator32(opt.ndf, 0, use_cy=False,
-                                                     dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation)
+                                                     dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation,
+                                                     linear_no_sn=opt.linear_no_sn)
             # netD.apply(weights_init)
         else:
             raise NotImplementedError
