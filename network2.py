@@ -89,7 +89,6 @@ class _netD_Res32(nn.Module):
         self.add_eta = add_eta
         self.mi_type_p = mi_type_p
         self.mi_type_q = mi_type_q
-        self.init_zero = init_zero
         self.use_softmax = use_softmax
         self.neg_log_y = np.log(self.num_classes)
 
@@ -109,7 +108,7 @@ class _netD_Res32(nn.Module):
             self.linear_p = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         elif self.mi_type_p == 'mine' or self.mi_type_p == 'eta':
             if self.use_softmax:
-                self.linear_p = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
+                self.linear_p = utils.spectral_norm(nn.Linear(num_features * 8, num_classes, bias=False))
             else:
                 self.embed_p = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
                 self.psi_p = utils.spectral_norm(nn.Embedding(num_features * 8, 1))
@@ -119,7 +118,7 @@ class _netD_Res32(nn.Module):
             self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         elif self.mi_type_q == 'mine' or self.mi_type_q == 'eta':
             if self.use_softmax:
-                self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
+                self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes, bias=False))
             else:
                 self.embed_q = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
                 self.psi_q = utils.spectral_norm(nn.Embedding(num_features * 8, 1))
@@ -144,7 +143,7 @@ class _netD_Res32(nn.Module):
             if self.mi_type_p == 'ce':
                 t_p = -F.cross_entropy(self.linear_p(h), y, reduction='none').view(-1, 1)
             elif self.mi_type_p == 'mine' or self.mi_type_p == 'eta':
-                eta_p = self.eta_p(y) is self.add_eta else 0.
+                eta_p = self.eta_p(y) if self.add_eta else 0.
                 if self.use_softmax:
                     t_p = -F.cross_entropy(self.linear_p(h), y, reduction='none').view(-1, 1) + eta_p + self.neg_log_y
                 else:
@@ -154,7 +153,7 @@ class _netD_Res32(nn.Module):
             if self.mi_type_q == 'ce':
                 t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
             elif self.mi_type_q == 'mine' or self.mi_type_p == 'eta':
-                eta_q = self.eta_q(y) is self.add_eta else 0.
+                eta_q = self.eta_q(y) if self.add_eta else 0.
                 if self.use_softmax:
                     t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1) + eta_q + self.neg_log_y
                 else:
@@ -183,7 +182,6 @@ class _netD_Res32(nn.Module):
             if self.mi_type_q == 'ce':
                 t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
             elif self.mi_type_q == 'mine' or self.mi_type_p == 'eta':
-                eta_q = self.eta_q(y) is self.add_eta else 0.
                 if self.use_softmax:
                     t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
                 else:
@@ -211,3 +209,13 @@ class _netD_Res32(nn.Module):
                 param = param[-1]
             params.append(param.weight.data.clone().cpu().numpy())
         return params
+
+
+# Hinge Loss
+def loss_hinge_gen(output):
+    loss = torch.mean(F.relu(1. + output))
+    return loss
+
+def loss_idt_gen(output):
+    loss = torch.mean(output)
+    return loss

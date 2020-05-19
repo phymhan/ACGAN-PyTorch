@@ -18,7 +18,7 @@ import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options, set_onehot
 import utils
-from network2 import _netG_Res32, _netD_Res32
+import network2
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -74,6 +74,7 @@ parser.add_argument('--sample_trunc_normal', action='store_true')
 parser.add_argument('--separate', action='store_true')
 parser.add_argument('--mi_type_p', type=str, default='ce')
 parser.add_argument('--mi_type_q', type=str, default='ce')
+parser.add_argument('--f_loss', type=str, default='identity')
 
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -155,14 +156,14 @@ num_classes = int(opt.num_classes)
 nc = 3
 
 # Define the generator and initialize the weights
-netG = _netG_Res32(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
+netG = network2._netG_Res32(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
 netG.apply(weights_init)
 if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG))
 print(netG)
 
 # Define the discriminator and initialize the weights
-netD = _netD_Res32(ngpu, num_classes, mi_type_p=opt.mi_type_p, mi_type_q=opt.mi_type_q,
+netD = network2._netD_Res32(ngpu, num_classes, mi_type_p=opt.mi_type_p, mi_type_q=opt.mi_type_q,
                    add_eta=opt.add_eta, no_sn_dis=opt.no_sn_dis, use_softmax=opt.use_softmax)
 netD.apply(weights_init)
 if opt.netD != '':
@@ -172,6 +173,12 @@ print(netD)
 # loss functions
 dis_criterion = nn.BCEWithLogitsLoss()
 aux_criterion = nn.CrossEntropyLoss()
+if config['f_loss'] == 'hinge':
+    f_criterion = network2.loss_hinge_gen
+elif config['f_loss'] == 'identity':
+    f_criterion = network2.loss_idt_gen
+else:
+    raise NotImplementedError
 
 # tensor placeholders
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -233,6 +240,7 @@ for epoch in range(opt.niter):
     avg_loss_A = AverageMeter()
     avg_loss_IP = AverageMeter()
     avg_loss_IQ = AverageMeter()
+    avg_loss_f = AverageMeter()
     feature_batch_counter = 0
     for i, data in enumerate(dataloader, 0):
         # if save_features, save at the beginning of an epoch
@@ -357,9 +365,9 @@ for epoch in range(opt.niter):
         dis_errG = dis_criterion(dis_output, dis_label)
         logP = netD.log_prob(fake, fake_label, 'P')
         logQ = netD.log_prob(fake, fake_label, 'Q')
-        f_div = logQ - logP
+        f_div = f_criterion(logQ - logP)
 
-        errG = dis_errG + opt.lambda_mi * torch.mean(f_div)
+        errG = dis_errG + opt.lambda_mi * f_div
         errG.backward()
         optimizerG.step()
         D_G_z2 = torch.sigmoid(dis_output).data.mean()
@@ -370,11 +378,13 @@ for epoch in range(opt.niter):
         avg_loss_A.update(accuracy, batch_size)
         avg_loss_IP.update(mi_P.item(), batch_size)
         avg_loss_IQ.update(mi_Q.item(), batch_size)
+        avg_loss_f.update(f_div.item(), batch_size)
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f IP: %.4f (%.4f) IQ: %.4f (%.4f) Acc: %.4f (%.4f)'
+        print('[%d/%d][%d/%d] Loss_D: %.4f (%.4f) Loss_G: %.4f (%.4f) D(x): %.4f D(G(z)): %.4f / %.4f IP: %.4f (%.4f) IQ: %.4f (%.4f) f-div: %.4f (%.4f) Acc: %.4f (%.4f)'
               % (epoch, opt.niter, i, len(dataloader),
                  errD.item(), avg_loss_D.avg, errG.item(), avg_loss_G.avg, D_x, D_G_z1, D_G_z2,
-                 mi_P.item(), avg_loss_IP.avg, mi_Q.item(), avg_loss_IQ.avg, accuracy, avg_loss_A.avg))
+                 mi_P.item(), avg_loss_IP.avg, mi_Q.item(), avg_loss_IQ.avg, f_div.item(), avg_loss_f.avg,
+                 accuracy, avg_loss_A.avg))
         if i % 100 == 0:
             vutils.save_image(
                 utils.normalize(real_cpu), '%s/real_samples.png' % opt.outf)
@@ -401,6 +411,7 @@ for epoch in range(opt.niter):
                 np.save(os.path.join(outff, f'{name}_epoch_{epoch}.npy'), param)
     writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
     writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
+    writer.add_scalar('Loss/f_div', avg_loss_f.avg, epoch)
     writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
     writer.add_scalar('Metric/IP', avg_loss_IP.avg, epoch)
     writer.add_scalar('Metric/IQ', avg_loss_IQ.avg, epoch)
