@@ -18,7 +18,7 @@ import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options, set_onehot
 import utils
-from network2 import _netG_Res32, _netD_Res32
+from network2 import _netG_Res32, _netD_Res32, loss_hinge_gen, loss_idt_gen
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -172,9 +172,9 @@ print(netD)
 dis_criterion = nn.BCEWithLogitsLoss()
 aux_criterion = nn.CrossEntropyLoss()
 if opt.f_loss == 'hinge':
-    f_criterion = network2.loss_hinge_gen
+    f_criterion = loss_hinge_gen
 elif opt.f_loss == 'identity':
-    f_criterion = network2.loss_idt_gen
+    f_criterion = loss_idt_gen
 else:
     raise NotImplementedError
 
