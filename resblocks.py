@@ -6,7 +6,15 @@ import torch.nn.functional as F
 from torch.nn import init
 from torch.nn import utils
 import functools
-from network import IdentityMapping
+
+
+# Identity mapping
+class IdentityMapping(nn.Module):
+    def __init__(self, *args):
+        super(IdentityMapping, self).__init__()
+
+    def forward(self, x):
+        return x
 
 
 class Block(nn.Module):
