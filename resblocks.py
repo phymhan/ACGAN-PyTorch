@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.nn import init
 from torch.nn import utils
 import functools
-import network
+from network import IdentityMapping
 
 
 class Block(nn.Module):
@@ -20,7 +20,7 @@ class Block(nn.Module):
         if dropout > 0:
             drop_layer = functools.partial(nn.Dropout2d, p=dropout)
         else:
-            drop_layer = network.IdentityMapping
+            drop_layer = IdentityMapping
 
         self.learnable_sc = (in_ch != out_ch) or downsample
         if h_ch is None:
@@ -71,7 +71,7 @@ class OptimizedBlock(nn.Module):
         if dropout > 0:
             drop_layer = functools.partial(nn.Dropout2d, p=dropout)
         else:
-            drop_layer = network.IdentityMapping
+            drop_layer = IdentityMapping
 
         self.c1 = utils.spectral_norm(nn.Conv2d(in_ch, out_ch, ksize, 1, pad))
         self.c2 = utils.spectral_norm(nn.Conv2d(out_ch, out_ch, ksize, 1, pad))

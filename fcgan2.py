@@ -18,7 +18,7 @@ import torchvision.utils as vutils
 from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options, set_onehot
 import utils
-import network2
+from network2 import _netG_Res32, _netD2_Res32
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
@@ -155,14 +155,14 @@ num_classes = int(opt.num_classes)
 nc = 3
 
 # Define the generator and initialize the weights
-netG = network2._netG_Res32(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
+netG = _netG_Res32(ngpu, nz, ny, num_classes, one_hot=opt.use_onehot_embed)
 netG.apply(weights_init)
 if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG))
 print(netG)
 
 # Define the discriminator and initialize the weights
-netD = network2._netD2_Res32(ngpu, num_classes, mi_type_p=opt.mi_type_p, mi_type_q=opt.mi_type_q,
+netD = _netD2_Res32(ngpu, num_classes, mi_type_p=opt.mi_type_p, mi_type_q=opt.mi_type_q,
                    add_eta=opt.add_eta, no_sn_dis=opt.no_sn_dis, use_softmax=opt.use_softmax)
 netD.apply(weights_init)
 if opt.netD != '':
