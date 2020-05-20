@@ -102,8 +102,10 @@ class _netD_Res32(nn.Module):
                 self.linear_p = utils.spectral_norm(nn.Linear(num_features * 8, num_classes, bias=False))
             else:
                 self.embed_p = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
-                self.psi_p = utils.spectral_norm(nn.Embedding(num_features * 8, 1))
+                self.psi_p = utils.spectral_norm(nn.Linear(num_features * 8, 1))
             self.eta_p = nn.Embedding(num_classes, 1) if self.add_eta else None
+        else:
+            raise NotImplementedError
         # Q
         if self.mi_type_q == 'ce':
             self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
@@ -112,8 +114,10 @@ class _netD_Res32(nn.Module):
                 self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes, bias=False))
             else:
                 self.embed_q = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
-                self.psi_q = utils.spectral_norm(nn.Embedding(num_features * 8, 1))
+                self.psi_q = utils.spectral_norm(nn.Linear(num_features * 8, 1))
             self.eta_q = nn.Embedding(num_classes, 1) if self.add_eta else None
+        else:
+            raise NotImplementedError
 
     def forward(self, x, y=None, distribution=''):
         h = self.block1(x)
@@ -138,18 +142,22 @@ class _netD_Res32(nn.Module):
                 if self.use_softmax:
                     t_p = -F.cross_entropy(self.linear_p(h), y, reduction='none').view(-1, 1) + eta_p + self.neg_log_y
                 else:
-                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(x) + eta_p + self.neg_log_y
-            return t_p.squeeze(1)
+                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(h) + eta_p + self.neg_log_y
+            else:
+                raise NotImplementedError
+            return t_p
         else:
             if self.mi_type_q == 'ce':
                 t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
-            elif self.mi_type_q == 'mine' or self.mi_type_p == 'eta':
+            elif self.mi_type_q == 'mine' or self.mi_type_q == 'eta':
                 eta_q = self.eta_q(y) if self.add_eta else 0.
                 if self.use_softmax:
                     t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1) + eta_q + self.neg_log_y
                 else:
-                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(x) + eta_q + self.neg_log_y
-            return t_q.squeeze(1)
+                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(h) + eta_q + self.neg_log_y
+            else:
+                raise NotImplementedError
+            return t_q
 
     def log_prob(self, x, y, distribution='P'):
         h = self.block1(x)
@@ -167,17 +175,21 @@ class _netD_Res32(nn.Module):
                 if self.use_softmax:
                     t_p = -F.cross_entropy(self.linear_p(h), y, reduction='none').view(-1, 1)
                 else:
-                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(x)
-            return t_p.squeeze(1)
+                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(h)
+            else:
+                raise NotImplementedError
+            return t_p
         else:
             if self.mi_type_q == 'ce':
                 t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
-            elif self.mi_type_q == 'mine' or self.mi_type_p == 'eta':
+            elif self.mi_type_q == 'mine' or self.mi_type_q == 'eta':
                 if self.use_softmax:
                     t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
                 else:
-                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(x)
-            return t_q.squeeze(1)
+                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(h)
+            else:
+                raise NotImplementedError
+            return t_q
 
     def get_feature(self, x):
         h = self.block1(x)
@@ -247,8 +259,10 @@ class _netD2_Res32(nn.Module):
                 self.linear_p = utils.spectral_norm(nn.Linear(num_features * 8, num_classes, bias=False))
             else:
                 self.embed_p = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
-                self.psi_p = utils.spectral_norm(nn.Embedding(num_features * 8, 1))
+                self.psi_p = utils.spectral_norm(nn.Linear(num_features * 8, 1))
             self.eta_p = nn.Embedding(num_classes, 1) if self.add_eta else None
+        else:
+            raise NotImplementedError
         # Q
         if self.mi_type_q == 'ce':
             self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
@@ -257,8 +271,10 @@ class _netD2_Res32(nn.Module):
                 self.linear_q = utils.spectral_norm(nn.Linear(num_features * 8, num_classes, bias=False))
             else:
                 self.embed_q = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8))
-                self.psi_q = utils.spectral_norm(nn.Embedding(num_features * 8, 1))
+                self.psi_q = utils.spectral_norm(nn.Linear(num_features * 8, 1))
             self.eta_q = nn.Embedding(num_classes, 1) if self.add_eta else None
+        else:
+            raise NotImplementedError
 
     def forward(self, x, y=None, distribution=''):
         h = self.block1(x)
@@ -287,18 +303,22 @@ class _netD2_Res32(nn.Module):
                 if self.use_softmax:
                     t_p = -F.cross_entropy(self.linear_p(h), y, reduction='none').view(-1, 1) + eta_p + self.neg_log_y
                 else:
-                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(x) + eta_p + self.neg_log_y
-            return t_p.squeeze(1)
+                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(h) + eta_p + self.neg_log_y
+            else:
+                raise NotImplementedError
+            return t_p
         else:
             if self.mi_type_q == 'ce':
                 t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
-            elif self.mi_type_q == 'mine' or self.mi_type_p == 'eta':
+            elif self.mi_type_q == 'mine' or self.mi_type_q == 'eta':
                 eta_q = self.eta_q(y) if self.add_eta else 0.
                 if self.use_softmax:
                     t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1) + eta_q + self.neg_log_y
                 else:
-                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(x) + eta_q + self.neg_log_y
-            return t_q.squeeze(1)
+                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(h) + eta_q + self.neg_log_y
+            else:
+                raise NotImplementedError
+            return t_q
     
     def get_inner_prod(self, h, y, distribution='P'):
         if distribution == 'P':
@@ -309,6 +329,8 @@ class _netD2_Res32(nn.Module):
                     t = self.linear_p(h)[range(y.size(0)), y].view(-1, 1)
                 else:
                     t = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True)
+            else:
+                raise NotImplementedError
         else:
             if self.mi_type_q == 'ce':
                 t = self.linear_q(h)[range(y.size(0)), y].view(-1, 1)
@@ -317,6 +339,8 @@ class _netD2_Res32(nn.Module):
                     t = self.linear_q(h)[range(y.size(0)), y].view(-1, 1)
                 else:
                     t = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True)
+            else:
+                raise NotImplementedError
         return t
 
     def log_prob(self, x, y, distribution='P'):
@@ -335,17 +359,21 @@ class _netD2_Res32(nn.Module):
                 if self.use_softmax:
                     t_p = -F.cross_entropy(self.linear_p(h), y, reduction='none').view(-1, 1)
                 else:
-                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(x)
-            return t_p.squeeze(1)
+                    t_p = torch.sum(self.embed_p(y) * h, dim=1, keepdim=True) + self.psi_p(h)
+            else:
+                raise NotImplementedError
+            return t_p
         else:
             if self.mi_type_q == 'ce':
                 t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
-            elif self.mi_type_q == 'mine' or self.mi_type_p == 'eta':
+            elif self.mi_type_q == 'mine' or self.mi_type_q == 'eta':
                 if self.use_softmax:
                     t_q = -F.cross_entropy(self.linear_q(h), y, reduction='none').view(-1, 1)
                 else:
-                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(x)
-            return t_q.squeeze(1)
+                    t_q = torch.sum(self.embed_q(y) * h, dim=1, keepdim=True) + self.psi_q(h)
+            else:
+                raise NotImplementedError
+            return t_q
 
     def get_feature(self, x):
         h = self.block1(x)

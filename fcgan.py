@@ -302,7 +302,6 @@ for epoch in range(opt.niter):
         errD_fake.backward()
         D_G_z1 = torch.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
-        optimizerD.step()
 
         ############################
         # (2) Mutual Information
@@ -310,49 +309,45 @@ for epoch in range(opt.niter):
         real_label = label
         # train with real
         y = real_label
-        for _ in range(opt.n_update_mine):
-            optimizerD.zero_grad()
-            if opt.mi_type_p == 'ce':
-                errD_mi_P = -netD(input, y, 'P').mean()
-                mi_P = np.log(num_classes) - errD_mi_P
-            elif opt.mi_type_p == 'mine':
-                y_bar = y[torch.randperm(batch_size), ...]
-                tp = netD(input, y, 'P')
-                tp_bar = netD(input, y_bar, 'P')
-                tp_bar_max = tp_bar.max().detach()
-                mi_P = torch.mean(tp) - torch.log(torch.mean(torch.exp(tp_bar - tp_bar_max))) - tp_bar_max
-                errD_mi_P = -mi_P
-            elif opt.mi_type_p == 'eta':
-                y_bar = y[torch.randperm(batch_size), ...]
-                tp = netD(input, y, 'P')
-                tp_bar = netD(input, y_bar, 'P')
-                mi_P = torch.mean(tp) - torch.mean(torch.exp(tp_bar))
-                errD_mi_P = -mi_P
-            errD_mi_P.backward()
-            optimizerD.step()
+        if opt.mi_type_p == 'ce':
+            errD_mi_P = -netD(input, y, 'P').mean()
+            mi_P = np.log(num_classes) - errD_mi_P
+        elif opt.mi_type_p == 'mine':
+            y_bar = y[torch.randperm(batch_size), ...]
+            tp = netD(input, y, 'P')
+            tp_bar = netD(input, y_bar, 'P')
+            tp_bar_max = tp_bar.max().detach()
+            mi_P = torch.mean(tp) - torch.log(torch.mean(torch.exp(tp_bar - tp_bar_max))) - tp_bar_max
+            errD_mi_P = -mi_P
+        elif opt.mi_type_p == 'eta':
+            y_bar = y[torch.randperm(batch_size), ...]
+            tp = netD(input, y, 'P')
+            tp_bar = netD(input, y_bar, 'P')
+            mi_P = torch.mean(tp) - torch.mean(torch.exp(tp_bar))
+            errD_mi_P = -mi_P
+        errD_mi_P.backward()
 
         # train with fake
         y = fake_label
-        for _ in range(opt.n_update_mine):
-            optimizerD.zero_grad()
-            if opt.mi_type_q == 'ce':
-                errD_mi_Q = -netD(fake.detach(), y, 'Q').mean()
-                mi_Q = np.log(num_classes) - errD_mi_Q
-            elif opt.mi_type_q == 'mine':
-                y_bar = y[torch.randperm(batch_size), ...]
-                tq = netD(fake.detach(), y, 'Q')
-                tq_bar = netD(fake.detach(), y_bar, 'Q')
-                tq_bar_max = tq_bar.max().detach()
-                mi_Q = torch.mean(tq) - torch.log(torch.mean(torch.exp(tq_bar - tq_bar_max))) - tq_bar_max
-                errD_mi_Q = -mi_Q
-            elif opt.mi_type_q == 'eta':
-                y_bar = y[torch.randperm(batch_size), ...]
-                tq = netD(fake.detach(), y, 'Q')
-                tq_bar = netD(fake.detach(), y_bar, 'Q')
-                mi_Q = torch.mean(tq) - torch.mean(torch.exp(tq_bar))
-                errD_mi_Q = -mi_Q
-            errD_mi_Q.backward()
-            optimizerD.step()
+        if opt.mi_type_q == 'ce':
+            errD_mi_Q = -netD(fake.detach(), y, 'Q').mean()
+            mi_Q = np.log(num_classes) - errD_mi_Q
+        elif opt.mi_type_q == 'mine':
+            y_bar = y[torch.randperm(batch_size), ...]
+            tq = netD(fake.detach(), y, 'Q')
+            tq_bar = netD(fake.detach(), y_bar, 'Q')
+            tq_bar_max = tq_bar.max().detach()
+            mi_Q = torch.mean(tq) - torch.log(torch.mean(torch.exp(tq_bar - tq_bar_max))) - tq_bar_max
+            errD_mi_Q = -mi_Q
+        elif opt.mi_type_q == 'eta':
+            y_bar = y[torch.randperm(batch_size), ...]
+            tq = netD(fake.detach(), y, 'Q')
+            tq_bar = netD(fake.detach(), y_bar, 'Q')
+            mi_Q = torch.mean(tq) - torch.mean(torch.exp(tq_bar))
+            errD_mi_Q = -mi_Q
+        errD_mi_Q.backward()
+        
+        optimizerD.step()
 
         ############################
         # (3) Update G network: maximize log(D(G(z)))
