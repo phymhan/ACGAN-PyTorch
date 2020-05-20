@@ -171,9 +171,9 @@ print(netD)
 # loss functions
 dis_criterion = nn.BCEWithLogitsLoss()
 aux_criterion = nn.CrossEntropyLoss()
-if config['f_loss'] == 'hinge':
+if opt.f_loss == 'hinge':
     f_criterion = network2.loss_hinge_gen
-elif config['f_loss'] == 'identity':
+elif opt.f_loss == 'identity':
     f_criterion = network2.loss_idt_gen
 else:
     raise NotImplementedError
