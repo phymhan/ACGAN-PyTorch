@@ -79,8 +79,6 @@ parser.add_argument('--f_loss', type=str, default='identity')
 opt = parser.parse_args()
 print_options(parser, opt)
 
-EPSILON = opt.eps
-
 # specify the gpu id if using only 1 gpu
 # if opt.ngpu == 1:
 #     os.environ['CUDA_VISIBLE_DEVICES'] = str(opt.gpu_id)

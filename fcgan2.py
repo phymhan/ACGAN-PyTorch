@@ -78,8 +78,6 @@ parser.add_argument('--mi_type_q', type=str, default='ce')
 opt = parser.parse_args()
 print_options(parser, opt)
 
-EPSILON = opt.eps
-
 # specify the gpu id if using only 1 gpu
 # if opt.ngpu == 1:
 #     os.environ['CUDA_VISIBLE_DEVICES'] = str(opt.gpu_id)
