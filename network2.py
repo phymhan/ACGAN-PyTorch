@@ -127,7 +127,7 @@ class _netD_Res32(nn.Module):
         if y is None:
             realfake = self.linear_dis(h)
             classes = self.linear_aux(h.detach())
-            return realfake, classes
+            return realfake.squeeze(1), classes
 
         # if ce, return loglikelihood(y|x); if mine, return t(x, y)
         if distribution == 'P':
@@ -273,7 +273,7 @@ class _netD2_Res32(nn.Module):
                 real_output = self.get_inner_prod(h, y, 'P')
                 fake_output = self.get_inner_prod(h, y, 'Q')
                 realfake = realfake + real_output - fake_output
-            return realfake, classes
+            return realfake.squeeze(1), classes
 
         # if ce, return loglikelihood(y|x); if mine, return t(x, y)
         if distribution == 'P':
