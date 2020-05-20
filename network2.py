@@ -196,9 +196,12 @@ class _netD_Res32(nn.Module):
         params = []
         for param in self.get_linear_name():
             param = getattr(self, param, None)
-            if isinstance(param, nn.Sequential):
-                param = param[-1]
-            params.append(param.weight.data.clone().cpu().numpy())
+            if param is None:
+                params.append(None)
+            else:
+                if isinstance(param, nn.Sequential):
+                    param = param[-1]
+                params.append(param.weight.data.clone().cpu().numpy())
         return params
 
 
@@ -361,7 +364,10 @@ class _netD2_Res32(nn.Module):
         params = []
         for param in self.get_linear_name():
             param = getattr(self, param, None)
-            if isinstance(param, nn.Sequential):
-                param = param[-1]
-            params.append(param.weight.data.clone().cpu().numpy())
+            if param is None:
+                params.append(None)
+            else:
+                if isinstance(param, nn.Sequential):
+                    param = param[-1]
+                params.append(param.weight.data.clone().cpu().numpy())
         return params
