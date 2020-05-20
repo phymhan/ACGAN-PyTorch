@@ -10,15 +10,6 @@ import pdb
 from utils import weights_init
 
 
-# Identity mapping
-class IdentityMapping(nn.Module):
-    def __init__(self, *args):
-        super(IdentityMapping, self).__init__()
-
-    def forward(self, x):
-        return x
-
-
 class _netG_Res32(nn.Module):
     def __init__(self, ngpu, nz, ny=10, num_classes=10, one_hot=False, ignore_y=False):
         super(_netG_Res32, self).__init__()
