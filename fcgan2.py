@@ -329,7 +329,7 @@ for epoch in range(opt.niter):
         for _ in range(opt.n_update_mine):
             optimizerD.zero_grad()
             if opt.mi_type_q == 'ce':
-                errD_mi_q = -netD(fake.detach(), y, 'Q').mean()
+                errD_mi_Q = -netD(fake.detach(), y, 'Q').mean()
                 mi_Q = np.log(num_classes) - errD_mi_Q
             elif opt.mi_type_q == 'mine':
                 y_bar = y[torch.randperm(batch_size), ...]
