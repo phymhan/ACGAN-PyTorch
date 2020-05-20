@@ -21,6 +21,16 @@ def weights_init(m):
         init.xavier_uniform_(m.weight.data)
 
 
+def weights_init2(m):
+    classname = m.__class__.__name__
+    if classname.find('Embedding') != -1:
+        # m.weight.data.normal_(1.0, 0.02)
+        init.xavier_uniform_(m.weight.data)
+    elif classname.find('Linear') != -1:
+        # m.weight.data.normal_(1.0, 0.02)
+        init.xavier_uniform_(m.weight.data)
+
+
 # compute the current classification accuracy
 def compute_acc(preds, labels):
     correct = 0

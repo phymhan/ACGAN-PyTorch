@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import numpy as np
 import functools
 import pdb
-from utils import weights_init
+from utils import weights_init, weights_init2
 
 
 class _netG_Res32(nn.Module):
@@ -118,6 +118,10 @@ class _netD_Res32(nn.Module):
             self.eta_q = nn.Embedding(num_classes, 1) if self.add_eta else None
         else:
             raise NotImplementedError
+        self._initialize()
+
+    def _initialize(self):
+        self.apply(weights_init2)
 
     def forward(self, x, y=None, distribution=''):
         h = self.block1(x)
@@ -275,6 +279,10 @@ class _netD2_Res32(nn.Module):
             self.eta_q = nn.Embedding(num_classes, 1) if self.add_eta else None
         else:
             raise NotImplementedError
+        self._initialize()
+
+    def _initialize(self):
+        self.apply(weights_init2)
 
     def forward(self, x, y=None, distribution=''):
         h = self.block1(x)
