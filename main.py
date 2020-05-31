@@ -281,6 +281,8 @@ for epoch in range(opt.niter):
     for i, data in enumerate(dataloader, 0):
         # if save_features, save at the beginning of an epoch
         if opt.feature_save and epoch % opt.feature_save_every == 0 and feature_batch_counter < opt.feature_num_batches:
+            netD.eval()
+            netG.eval()
             with torch.no_grad():
                 if len(feature_batches) < opt.feature_num_batches:
                     eval_x, eval_y = data
@@ -303,7 +305,8 @@ for epoch in range(opt.niter):
                                     os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
             continue
-
+        netD.train()
+        netG.train()
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################

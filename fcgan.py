@@ -163,7 +163,7 @@ print(netG)
 # Define the discriminator and initialize the weights
 netD = _netD_Res32(ngpu, num_classes, mi_type_p=opt.mi_type_p, mi_type_q=opt.mi_type_q,
                    add_eta=opt.add_eta, no_sn_dis=opt.no_sn_dis, use_softmax=opt.use_softmax)
-netD.apply(weights_init)
+# netD.apply(weights_init)
 if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
 print(netD)
@@ -346,7 +346,7 @@ for epoch in range(opt.niter):
             mi_Q = torch.mean(tq) - torch.mean(torch.exp(tq_bar))
             errD_mi_Q = -mi_Q
         errD_mi_Q.backward()
-        
+
         optimizerD.step()
 
         ############################
