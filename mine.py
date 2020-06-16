@@ -19,7 +19,7 @@ from torch.autograd import Variable
 from utils import weights_init, compute_acc, AverageMeter, ImageSampler, print_options, set_onehot
 import utils
 from network import _netG, _netD, _netT, _netD_CIFAR10, _netD_SNRes32, _netG_CIFAR10, _netT_concat_CIFAR10, _netDT_CIFAR10
-from network import SNResNetProjectionDiscriminator64, SNResNetProjectionDiscriminator32, _netDT_SNResProj32
+from network import SNResNetProjectionDiscriminator32, _netDT_SNResProj32
 from folder import ImageFolder
 from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
