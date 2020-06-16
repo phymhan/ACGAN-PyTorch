@@ -1,6 +1,7 @@
-## Code for paper
+## Unbiased Auxiliary Classifier GANs with MINE
+This repo contains code for the [CVPR 2020 workshop](https://adv-workshop-2020.github.io) paper **Unbiased Auxiliary Classifier GANs with MINE**. [[pdf]](https://github.com/adv-workshop-2020/adv-workshop-2020.github.io/blob/master/short_papers/74.pdf) [[arXiv]](https://arxiv.org/pdf/2006.07567.pdf)
 
-The code is largely based on the PyTorch implementation of [AC-GAN](https://github.com/clvrai/ACGAN-PyTorch)
+The code is largely based on the [PyTorch](https://pytorch.org/) implementation of [AC-GAN](https://github.com/clvrai/ACGAN-PyTorch)
 
 ### To reproduce results in the paper:
 #### CIFAR10
