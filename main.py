@@ -201,16 +201,9 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar
             raise NotImplementedError
     else:
         # loss_type == 'ac' or loss_type == 'tac'
-        if opt.netD_model == 'snres32':
-            netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout,
-                                 dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation)
-            # netD.apply(weights_init)
-            print('######################')
-        elif opt.netD_model == 'basic':
-            netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
-            netD.apply(weights_init)
-        else:
-            raise NotImplementedError
+        netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout,
+                             dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation)
+        print('#'*100)
 else:
     raise NotImplementedError
 if opt.netD != '':
@@ -339,7 +332,7 @@ for epoch in range(opt.niter):
             aux_errD_real = 0.
         else:
             aux_errD_real = aux_criterion(aux_output, label)
-        errD_real = dis_errD_real + aux_errD_real
+        errD_real = dis_errD_real + aux_errD_real * opt.lambda_tac
         errD_real.backward()
         D_x = torch.sigmoid(dis_output).data.mean()
 
@@ -383,7 +376,7 @@ for epoch in range(opt.niter):
             aux_errD_fake = 0.
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
-        errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
+        errD_fake = dis_errD_fake + (aux_errD_fake + tac_errD_fake) * opt.lambda_tac
         errD_fake.backward()
         D_G_z1 = torch.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
@@ -416,7 +409,7 @@ for epoch in range(opt.niter):
             aux_errG = 0.
         else:
             aux_errG = aux_criterion(aux_output, fake_label)
-        errG = dis_errG + aux_errG - opt.lambda_tac * tac_errG
+        errG = dis_errG + (aux_errG - tac_errG) * opt.lambda_tac
         errG.backward()
         D_G_z2 = torch.sigmoid(dis_output).data.mean()
         optimizerG.step()

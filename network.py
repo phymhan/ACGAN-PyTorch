@@ -554,7 +554,7 @@ class _netDT_SNResProj32(nn.Module):
         self.use_cy = use_cy or eta
         self.init_zero = init_zero
         self.softmax = softmax
-        self.neg_log_py = 0. if no_neg_log_py else np.log(self.num_classes)
+        # self.neg_log_py = 0. if no_neg_log_py else np.log(self.num_classes)
         self.use_eta = eta
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
@@ -622,7 +622,7 @@ class _netDT_SNResProj32(nn.Module):
             else:
                 output = self.l5(h)
                 output += torch.sum(self.l_y(y) * h, dim=1, keepdim=True) + cy
-            return output.squeeze(1) + self.neg_log_py
+            return output.squeeze(1)
         else:
             # netD(x)
             realfake = self.fc_dis(h).squeeze(1)
@@ -867,6 +867,28 @@ class _netD_SNRes32(nn.Module):
         self.fc_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         # twin aux-classifier fc
         self.tac_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
+
+        self._initialize()
+    
+    def _initialize(self):
+        optional_l5 = getattr(self, 'l5', None)
+        if optional_l5 is not None:
+            init.xavier_uniform_(optional_l5.weight.data)
+        optional_fc_dis = getattr(self, 'fc_dis', None)
+        if optional_fc_dis is not None:
+            init.xavier_uniform_(optional_fc_dis.weight.data)
+        optional_fc_aux = getattr(self, 'fc_aux', None)
+        if optional_fc_aux is not None:
+            init.xavier_uniform_(optional_fc_aux.weight.data)
+        optional_tac_aux = getattr(self, 'tac_aux', None)
+        if optional_tac_aux is not None:
+            init.xavier_uniform_(optional_tac_aux.weight.data)
+        optional_l_y = getattr(self, 'l_y', None)
+        if optional_l_y is not None:
+            init.xavier_uniform_(optional_l_y.weight.data)
+        optional_c_y = getattr(self, 'c_y', None)
+        if optional_c_y is not None:
+            optional_c_y.weight.data.fill_(0)
 
     def forward(self, x):
         h = self.block1(x)
