@@ -84,8 +84,6 @@ parser.add_argument('--tbar_save', action='store_true')
 parser.add_argument('--tbar_save_every', type=int, default=1)
 parser.add_argument('--tbar_num_batches', type=int, default=1)
 parser.add_argument('--no_neg_log_py', action='store_true')
-parser.add_argument('--debug', action='store_true')
-
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -454,23 +452,22 @@ for epoch in range(opt.niter):
         eval_label_const = (eval_label_const + 1) % num_classes
         eval_label.data.fill_(eval_label_const)
 
-    if not opt.debug:
-        # compute metrics
-        is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
-                                           prints=True, use_torch=False)
-        writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
-        writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
-        writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
-        writer.add_scalar('Metric/MI', avg_loss_M.avg, epoch)
-        writer.add_scalar('Metric/FID', fid, epoch)
-        writer.add_scalar('Metric/IS', is_mean, epoch)
-        losses_G.append(avg_loss_G.avg)
-        losses_D.append(avg_loss_D.avg)
-        losses_A.append(avg_loss_A.avg)
-        losses_M.append(avg_loss_M.avg)
-        losses_F.append(fid)
-        losses_I_mean.append(is_mean)
-        losses_I_std.append(is_std)
+    # compute metrics
+    is_mean, is_std, fid = get_metrics(sampler, num_inception_images=opt.num_inception_images, num_splits=10,
+                                        prints=True, use_torch=False)
+    writer.add_scalar('Loss/G', avg_loss_G.avg, epoch)
+    writer.add_scalar('Loss/D', avg_loss_D.avg, epoch)
+    writer.add_scalar('Metric/Aux', avg_loss_A.avg, epoch)
+    writer.add_scalar('Metric/MI', avg_loss_M.avg, epoch)
+    writer.add_scalar('Metric/FID', fid, epoch)
+    writer.add_scalar('Metric/IS', is_mean, epoch)
+    losses_G.append(avg_loss_G.avg)
+    losses_D.append(avg_loss_D.avg)
+    losses_A.append(avg_loss_A.avg)
+    losses_M.append(avg_loss_M.avg)
+    losses_F.append(fid)
+    losses_I_mean.append(is_mean)
+    losses_I_std.append(is_std)
 
     # do checkpointing
     if epoch % 10 == 0:

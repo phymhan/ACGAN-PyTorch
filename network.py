@@ -831,11 +831,6 @@ class _netD_SNRes32(nn.Module):
         self.tac = tac
         self.use_proj = use_proj
         self.detach_ac = detach_ac
-        fc_activation = nn.ReLU
-        if dis_fc_activation == 'tanh':
-            fc_activation = nn.Tanh
-        elif dis_fc_activation == 'relu':
-            fc_activation = nn.ReLU
 
         self.block1 = OptimizedBlock(3, num_features, dropout=dropout)
         self.block2 = Block(num_features, num_features * 2,
@@ -850,19 +845,7 @@ class _netD_SNRes32(nn.Module):
             self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1))
 
         # discriminator fc
-        fc_blocks = []
-        nf_prev = num_features * 8
-        for i in range(len(dis_fc_dim) - 1):
-            nf = dis_fc_dim[i]
-            fc_blocks += [
-                utils.spectral_norm(nn.Linear(nf_prev, nf)),
-                fc_activation()]
-            nf_prev = nf
-        if len(dis_fc_dim) > 0:
-            fc_blocks += [
-                utils.spectral_norm(nn.Linear(nf_prev, dis_fc_dim[-1])),
-            ]
-        self.fc_dis = nn.Sequential(*fc_blocks) if len(dis_fc_dim) > 0 else None
+        self.fc_dis = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         # aux-classifier fc
         self.fc_aux = utils.spectral_norm(nn.Linear(num_features * 8, num_classes))
         # twin aux-classifier fc
@@ -937,24 +920,7 @@ class SNResNetProjectionDiscriminator32(nn.Module):
                             activation=activation, downsample=True)
         self.block4 = Block(num_features * 4, num_features * 8,
                             activation=activation, downsample=True)
-        fc_activation = nn.ReLU
-        if dis_fc_activation == 'tanh':
-            fc_activation = nn.Tanh
-        elif dis_fc_activation == 'relu':
-            fc_activation = nn.ReLU
-        fc_blocks = []
-        nf_prev = num_features * 8
-        for i in range(len(dis_fc_dim) - 1):
-            nf = dis_fc_dim[i]
-            fc_blocks += [
-                utils.spectral_norm(nn.Linear(nf_prev, nf)) if not linear_no_sn else nn.Linear(nf_prev, nf),
-                fc_activation()]
-            nf_prev = nf
-        if len(dis_fc_dim) > 0:
-            fc_blocks += [
-                utils.spectral_norm(nn.Linear(nf_prev, dis_fc_dim[-1])) if not linear_no_sn else nn.Linear(nf_prev, dis_fc_dim[-1]),
-            ]
-        self.l5 = nn.Sequential(*fc_blocks) if len(dis_fc_dim) > 0 else None
+        self.l5 = utils.spectral_norm(nn.Linear(num_features * 8, 1))
         if num_classes > 0:
             self.l_y = utils.spectral_norm(nn.Embedding(num_classes, num_features * 8)) if sn_emb_l else nn.Embedding(num_classes, num_features * 8)
             self.c_y = utils.spectral_norm(nn.Embedding(num_classes, 1)) if sn_emb_c else nn.Embedding(num_classes, 1)
@@ -1017,13 +983,6 @@ class SNResNetProjectionDiscriminator32(nn.Module):
         h = torch.sum(h, dim=(2, 3))
         return h
 
-    def get_v_y(self):
-        return self.l_y.weight.data.clone().cpu().numpy()
-
-    def get_v_psi(self):
-        # this is only for a single-layer linear psi
-        return self.l5[-1].weight.data.clone().cpu().numpy() if self.l5 is not None else None
-
     def get_linear_name(self):
         return ['l5', 'l_y', 'fc_aux']
 
@@ -1036,4 +995,3 @@ class SNResNetProjectionDiscriminator32(nn.Module):
             if param is not None:
                 params.append(param.weight.data.clone().cpu().numpy())
         return params
-        
