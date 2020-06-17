@@ -84,6 +84,7 @@ parser.add_argument('--tbar_save', action='store_true')
 parser.add_argument('--tbar_save_every', type=int, default=1)
 parser.add_argument('--tbar_num_batches', type=int, default=1)
 parser.add_argument('--no_neg_log_py', action='store_true')
+parser.add_argument('--weighted_D_loss', action='store_true', help='If True, lambda_tac is also applied to D')
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -319,7 +320,10 @@ for epoch in range(opt.niter):
 
         dis_errD_real = dis_criterion(dis_output, dis_label)
         aux_errD_real = aux_criterion(aux_output, label)
-        errD_real = dis_errD_real + aux_errD_real * opt.lambda_mi
+        if opt.weighted_D_loss:
+            errD_real = dis_errD_real + aux_errD_real * opt.lambda_mi
+        else:
+            errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
         D_x = torch.sigmoid(dis_output).data.mean()
 
@@ -336,7 +340,10 @@ for epoch in range(opt.niter):
         dis_output, aux_output = netD(fake.detach())
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         aux_errD_fake = 0. if opt.no_ac_on_fake else aux_criterion(aux_output, fake_label)
-        errD_fake = dis_errD_fake + aux_errD_fake * opt.lambda_mi
+        if opt.weighted_D_loss:
+            errD_fake = dis_errD_fake + aux_errD_fake * opt.lambda_mi
+        else:
+            errD_fake = dis_errD_fake + aux_errD_fake
         errD_fake.backward()
         D_G_z1 = torch.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
@@ -398,7 +405,10 @@ for epoch in range(opt.niter):
         aux_errG = aux_criterion(aux_output, fake_label)
         y_bar = y[torch.randperm(batch_size), ...]
         mi_errG = torch.mean(netT(fake, y)) - torch.log(torch.mean(torch.exp(netT(fake, y_bar)))+opt.eps)
-        errG = dis_errG + (aux_errG + mi_errG) * opt.lambda_mi
+        if opt.weighted_D_loss:
+            errG = dis_errG + (aux_errG + mi_errG) * opt.lambda_mi
+        else:
+            errG = dis_errG + aux_errG + mi_errG * opt.lambda_mi
 
         # adaptive
         if opt.adaptive:

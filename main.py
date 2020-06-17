@@ -69,6 +69,7 @@ parser.add_argument('--dis_fc_activation', type=str, default='tanh')
 parser.add_argument('--store_linear', action='store_true')
 parser.add_argument('--sample_trunc_normal', action='store_true')
 parser.add_argument('--linear_no_sn', action='store_true')
+parser.add_argument('--weighted_D_loss', action='store_true', help='If True, lambda_tac is also applied to D')
 opt = parser.parse_args()
 print_options(parser, opt)
 
@@ -332,7 +333,10 @@ for epoch in range(opt.niter):
             aux_errD_real = 0.
         else:
             aux_errD_real = aux_criterion(aux_output, label)
-        errD_real = dis_errD_real + aux_errD_real * opt.lambda_tac
+        if opt.weighted_D_loss:
+            errD_real = dis_errD_real + aux_errD_real * opt.lambda_tac
+        else:
+            errD_real = dis_errD_real + aux_errD_real
         errD_real.backward()
         D_x = torch.sigmoid(dis_output).data.mean()
 
@@ -376,7 +380,10 @@ for epoch in range(opt.niter):
             aux_errD_fake = 0.
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
-        errD_fake = dis_errD_fake + (aux_errD_fake + tac_errD_fake) * opt.lambda_tac
+        if opt.weighted_D_loss:
+            errD_fake = dis_errD_fake + (aux_errD_fake + tac_errD_fake) * opt.lambda_tac
+        else:
+            errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
         errD_fake.backward()
         D_G_z1 = torch.sigmoid(dis_output).data.mean()
         errD = errD_real + errD_fake
@@ -409,7 +416,10 @@ for epoch in range(opt.niter):
             aux_errG = 0.
         else:
             aux_errG = aux_criterion(aux_output, fake_label)
-        errG = dis_errG + (aux_errG - tac_errG) * opt.lambda_tac
+        if opt.weighted_D_loss:
+            errG = dis_errG + (aux_errG - tac_errG) * opt.lambda_tac
+        else:
+            errG = dis_errG + aux_errG - tac_errG * opt.lambda_tac
         errG.backward()
         D_G_z2 = torch.sigmoid(dis_output).data.mean()
         optimizerG.step()
