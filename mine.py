@@ -31,8 +31,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='cifar10 | imagenet')
 parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
-parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
-parser.add_argument('--samplerBatchSize', type=int, default=1, help='input batch size')
+parser.add_argument('--batchSize', type=int, default=256, help='input batch size')
+parser.add_argument('--samplerBatchSize', type=int, default=256, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=128, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ny', type=int, default=0, help='size of the latent embedding vector for y')
@@ -240,10 +240,6 @@ else:
         if opt.netT_model == 'concat':
             netT = _netT_concat_CIFAR10(ngpu)
             netT.apply(weights_init)
-        elif opt.netT_model == 'proj64':
-            netT = SNResNetProjectionDiscriminator64(opt.ntf, opt.num_classes,
-                                                     sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c)
-            # netT._initialize()
         elif opt.netT_model == 'proj32':
             netT = SNResNetProjectionDiscriminator32(opt.ntf, opt.num_classes,
                                                      sn_emb_l=not opt.no_sn_emb_l, sn_emb_c=not opt.no_sn_emb_c)

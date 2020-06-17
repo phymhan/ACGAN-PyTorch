@@ -29,8 +29,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='cifar10 | imagenet')
 parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
-parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
-parser.add_argument('--samplerBatchSize', type=int, default=500, help='input batch size')
+parser.add_argument('--batchSize', type=int, default=256, help='input batch size')
+parser.add_argument('--samplerBatchSize', type=int, default=256, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=128, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ny', type=int, default=0, help='size of the latent embedding vector for y')
@@ -68,7 +68,6 @@ parser.add_argument('--dis_fc_dim', type=int, nargs='*', default=[1], help='cnn 
 parser.add_argument('--dis_fc_activation', type=str, default='tanh')
 parser.add_argument('--store_linear', action='store_true')
 parser.add_argument('--sample_trunc_normal', action='store_true')
-parser.add_argument('--separate', action='store_true')
 parser.add_argument('--linear_no_sn', action='store_true')
 opt = parser.parse_args()
 print_options(parser, opt)
@@ -205,7 +204,8 @@ elif opt.dataset == 'mnist' or opt.dataset == 'cifar10' or opt.dataset == 'cifar
         if opt.netD_model == 'snres32':
             netD = _netD_SNRes32(opt.ndf, opt.num_classes, tac=opt.loss_type == 'tac', dropout=opt.bnn_dropout,
                                  dis_fc_dim=opt.dis_fc_dim, dis_fc_activation=opt.dis_fc_activation)
-            netD.apply(weights_init)
+            # netD.apply(weights_init)
+            print('######################')
         elif opt.netD_model == 'basic':
             netD = _netD_CIFAR10(ngpu, num_classes, tac=opt.loss_type == 'tac')
             netD.apply(weights_init)
@@ -337,8 +337,6 @@ for epoch in range(opt.niter):
         dis_errD_real = dis_criterion(dis_output, dis_label)
         if opt.loss_type == 'cgan' or opt.loss_type == 'gan':
             aux_errD_real = 0.
-            if opt.separate:
-                aux_errD_real = dis_criterion(aux_output, dis_label)
         else:
             aux_errD_real = aux_criterion(aux_output, label)
         errD_real = dis_errD_real + aux_errD_real
@@ -383,8 +381,6 @@ for epoch in range(opt.niter):
         dis_errD_fake = dis_criterion(dis_output, dis_label)
         if (opt.loss_type == 'cgan' or opt.loss_type == 'gan') or opt.no_ac_on_fake:
             aux_errD_fake = 0.
-            if opt.separate:
-                aux_errD_fake = dis_criterion(aux_output, dis_label)
         else:
             aux_errD_fake = aux_criterion(aux_output, fake_label)
         errD_fake = dis_errD_fake + aux_errD_fake + tac_errD_fake
