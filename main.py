@@ -305,8 +305,8 @@ for epoch in range(opt.niter):
                                     os.path.join(outff, f'fake_epoch_{epoch}_batch_{feature_batch_counter}_y.npy'))
             feature_batch_counter += 1
             continue
-        netD.train()
-        netG.train()
+        # netD.train()
+        # netG.train()
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
