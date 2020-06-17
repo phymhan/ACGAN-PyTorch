@@ -256,11 +256,10 @@ optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerT = optim.Adam(netT.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
-if not opt.debug:
-    dset_name = os.path.split(opt.dataroot)[-1]
-    datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
-    sampler = ImageSampler(netG, opt)
-    get_metrics = prepare_inception_metrics(dataloader, datafile, False, opt.num_inception_images, no_is=False)
+dset_name = os.path.split(opt.dataroot)[-1]
+datafile = os.path.join(opt.dataroot, '..', f'{dset_name}_stats', dset_name)
+sampler = ImageSampler(netG, opt)
+get_metrics = prepare_inception_metrics(dataloader, datafile, False, opt.num_inception_images, no_is=False)
 
 losses_D = []
 losses_G = []
